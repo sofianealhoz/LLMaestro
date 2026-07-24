@@ -1,0 +1,29 @@
+# Secrets : ne JAMAIS committer
+.env
+.env.*
+!.env.example
+*.key
+*.pem
+credentials.json
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+*.egg-info/
+.pytest_cache/
+
+# Node
+node_modules/
+npm-debug.log*
+
+# Sorties et divers
+dist/
+build/
+*.log
+.DS_Store
+
+# Notes perso, jamais publiees
+NOTES-LOCAL.md
+NOTES-ARCHI.md
