@@ -39,25 +39,19 @@ This keeps quality where it matters while staying within free/low-cost budgets.
 
 ## Architecture
 
+```mermaid
+flowchart TD
+    task["task in"] --> orch["Orchestrator, planning and tiered routing"]
+    orch --> pool["Worker pool, queue drained by N threads"]
+    pool --> router["Router, selection by cost/latency/quality<br/>fallback on error, 429, context cap"]
+    router --> ledger[("Quota ledger<br/>sqlite")]
+    router --> cerebras["Cerebras, cloud"]
+    router --> groq["Groq, cloud"]
+    router --> openrouter["OpenRouter, cloud"]
+    router --> ollama["Ollama, local and vision"]
 ```
-                 task in
-                    │
-        ┌───────────▼────────────┐
-        │      Orchestrator      │   planning · tiered routing
-        └───────────┬────────────┘
-                    │  route by cost / latency / quality
-        ┌───────────▼────────────┐
-        │         Router         │   automatic fallback on
-        │  (provider selection)  │   error · 429 · context cap
-        └──┬──────┬──────┬──────┬─┘
-           │      │      │      │
-      ┌────▼───┐ ┌▼────┐ ┌▼────┐ ┌▼──────┐
-      │Cerebras│ │Groq │ │Open-│ │Ollama │   providers
-      │ cloud  │ │cloud│ │Router│ │ local │
-      └────────┘ └─────┘ └─────┘ └───────┘
 
-   cross-cutting:  tool-use / connectors · MCP servers · output evaluation
-```
+Cross-cutting: tool-use connectors, MCP servers, output evaluation.
 
 The orchestrator decides *what* needs to happen; the router decides *where* it
 runs. Cloud providers are reached over their HTTP APIs behind a unified
