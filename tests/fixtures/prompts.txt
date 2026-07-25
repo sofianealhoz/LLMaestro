@@ -1,0 +1,5 @@
+# One prompt per line. Blank lines and comments are ignored.
+summarise in one sentence: the router picks a provider by cost, latency or quality
+translate to French: fallback on rate limit
+classify as bug, feature or question: the daemon is not listening on port 11434
+extract the version number: llmaestro 0.1.0 requires Python 3.11
