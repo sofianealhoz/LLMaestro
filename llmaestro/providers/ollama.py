@@ -1,9 +1,4 @@
-"""Local inference through Ollama: no key, no network, no quota.
-
-The daemon is often simply not running, which is not a failure of the request
-but of the provider, so `available()` lets the router and --check skip it
-without burning an attempt.
-"""
+"""Local inference through Ollama. No key, no quota."""
 
 from __future__ import annotations
 
@@ -15,15 +10,31 @@ from ..transport import get, post_json
 from .base import Completion, Provider, parse_json, raise_for_status
 
 PROBE_TIMEOUT = 1.5
+PROBE_TTL = 10.0
 
 
 class Ollama(Provider):
+    # Daemon down is the normal case, and a refused localhost connection is
+    # instant: cheaper to probe than to spend an attempt on it.
+    probe_before_use = True
+
+    def __init__(self, spec, clock=time.monotonic):
+        super().__init__(spec)
+        self._clock = clock
+        self._probed_at = None
+        self._probe = False
+
     def available(self) -> bool:
+        now = self._clock()
+        if self._probed_at is not None and now - self._probed_at < PROBE_TTL:
+            return self._probe
         try:
             response = get(f"{self.spec.base_url.rstrip('/')}/api/tags", PROBE_TIMEOUT, self.name)
+            self._probe = 200 <= response.status < 300
         except ProviderError:
-            return False
-        return 200 <= response.status < 300
+            self._probe = False
+        self._probed_at = now
+        return self._probe
 
     def complete(self, messages, *, max_tokens=512, temperature=0.2, timeout=120.0) -> Completion:
         payload = {

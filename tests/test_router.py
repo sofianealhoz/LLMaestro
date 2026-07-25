@@ -131,6 +131,22 @@ class Eligibility(unittest.TestCase):
         self.assertEqual("right", completion.text)
         self.assertEqual(0, small.calls)
 
+    def test_a_local_provider_that_is_not_listening_costs_no_attempt(self):
+        class Down(Scripted):
+            probe_before_use = True
+
+            def available(self):
+                return False
+
+        down = Down("local", ["never"], cost=1)
+        cloud = Scripted("cloud", ["done"], cost=9)
+        subject = router([down, cloud])
+
+        completion = subject.complete(prompt())
+
+        self.assertEqual("done", completion.text)
+        self.assertEqual(0, down.calls)
+
     def test_an_exhausted_quota_removes_a_provider_before_the_call(self):
         clock = FakeClock()
         ledger = Ledger(":memory:", clock=clock)

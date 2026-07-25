@@ -175,6 +175,9 @@ class Router:
                 if not allowed:
                     rejected.append(self._skip(provider, f"quota {why}"))
                     continue
+            if provider.probe_before_use and not provider.available():
+                rejected.append(self._skip(provider, "not listening"))
+                continue
             eligible.append(provider)
 
         eligible.sort(key=lambda p: self._order(p, task.policy))

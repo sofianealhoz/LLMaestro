@@ -46,6 +46,9 @@ class Completion:
 
 
 class Provider:
+    # True when available() is cheap enough for the router to call on every task.
+    probe_before_use = False
+
     def __init__(self, spec):
         self.spec = spec
 
@@ -58,7 +61,7 @@ class Provider:
         return self.spec.model
 
     def available(self) -> bool:
-        """Cheap liveness probe, used by --check. Cloud providers assume yes."""
+        """Liveness probe. Cloud providers assume yes."""
         return True
 
     def complete(self, messages, *, max_tokens=512, temperature=0.2, timeout=30.0) -> Completion:
