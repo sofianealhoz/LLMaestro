@@ -15,8 +15,10 @@
 name = "cerebras"
 kind = "openai_compat"
 base_url = "https://api.cerebras.ai/v1"
-model = "llama3.1-8b"
+model = "gpt-oss-120b"
 env_key = "CEREBRAS_API_KEY"
+# Free tier caps the context well below what the model supports. Under-declaring
+# it here just sends long prompts to Groq instead, which is the intended split.
 context_window = 8192
 vision = false
 tools = true
@@ -44,6 +46,23 @@ rpm = 30
 rpd = 14400
 tpm = 6000
 tpd = 500000
+
+[[provider]]
+name = "groq-70b"
+kind = "openai_compat"
+base_url = "https://api.groq.com/openai/v1"
+model = "llama-3.3-70b-versatile"
+env_key = "GROQ_API_KEY"
+context_window = 131072
+vision = false
+tools = true
+cost = 4
+latency = 2
+quality = 1
+rpm = 30
+rpd = 1000
+tpm = 12000
+tpd = 100000
 
 [[provider]]
 name = "openrouter"
