@@ -1,4 +1,4 @@
-# Secrets : ne JAMAIS committer
+# Secrets: never commit
 .env
 .env.*
 !.env.example
@@ -18,12 +18,13 @@ venv/
 node_modules/
 npm-debug.log*
 
-# Sorties et divers
+# Output and misc
 dist/
 build/
+out/
 *.log
 .DS_Store
 
-# Notes perso, jamais publiees
+# Local notes, never published
 NOTES-LOCAL.md
 NOTES-ARCHI.md

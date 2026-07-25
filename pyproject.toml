@@ -1,0 +1,28 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "llmaestro"
+version = "0.1.0"
+description = "Orchestration of multi-LLM AI agents, cloud and local"
+readme = "README.md"
+requires-python = ">=3.11"
+license = { file = "LICENSE" }
+keywords = ["llm", "orchestration", "router", "fallback", "ollama"]
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: MIT License",
+]
+
+# No runtime dependencies: the package uses the standard library only
+# (urllib for HTTP, tomllib for config, sqlite3 for the ledger, threading
+# for the worker pool). It therefore runs on any Python 3.11+ with nothing
+# installed.
+dependencies = []
+
+[project.scripts]
+llmaestro = "llmaestro.cli:main"
+
+[tool.setuptools.packages.find]
+include = ["llmaestro*"]

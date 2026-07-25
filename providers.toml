@@ -1,0 +1,88 @@
+# Provider catalogue.
+#
+# This file is the source of truth for which providers exist, what they cost,
+# and in what order the router falls back. Secrets never live here: each entry
+# names the environment variable holding its key (see .env.example).
+#
+# Ranks are 1 = best. The router sorts candidates by the rank matching the
+# requested policy (cost, latency, quality).
+#
+# Quotas are the free-tier limits as documented by each provider. They are a
+# starting point: the ledger tightens them automatically when a provider
+# answers 429, so wrong values self-correct after one refusal.
+
+[[provider]]
+name = "cerebras"
+kind = "openai_compat"
+base_url = "https://api.cerebras.ai/v1"
+model = "llama3.1-8b"
+env_key = "CEREBRAS_API_KEY"
+context_window = 8192
+vision = false
+tools = true
+cost = 2
+latency = 1
+quality = 3
+rpm = 30
+rpd = 14400
+tpm = 60000
+tpd = 1000000
+
+[[provider]]
+name = "groq"
+kind = "openai_compat"
+base_url = "https://api.groq.com/openai/v1"
+model = "llama-3.1-8b-instant"
+env_key = "GROQ_API_KEY"
+context_window = 131072
+vision = false
+tools = true
+cost = 2
+latency = 1
+quality = 3
+rpm = 30
+rpd = 14400
+tpm = 6000
+tpd = 500000
+
+[[provider]]
+name = "openrouter"
+kind = "openai_compat"
+base_url = "https://openrouter.ai/api/v1"
+model = "meta-llama/llama-3.3-70b-instruct:free"
+env_key = "OPENROUTER_API_KEY"
+context_window = 65536
+vision = false
+tools = true
+cost = 3
+latency = 3
+quality = 2
+rpm = 20
+rpd = 50
+
+# Local inference. No key: availability is probed at runtime, and the provider
+# is simply skipped when the daemon is not listening.
+[[provider]]
+name = "ollama"
+kind = "ollama"
+base_url = "http://localhost:11434"
+model = "qwen2.5-coder:7b"
+context_window = 32768
+vision = false
+tools = false
+cost = 1
+latency = 4
+quality = 4
+
+# Vision-capable local model, used when a task requires the "vision" capability.
+[[provider]]
+name = "ollama-vision"
+kind = "ollama"
+base_url = "http://localhost:11434"
+model = "qwen3-vl:8b"
+context_window = 32768
+vision = true
+tools = false
+cost = 1
+latency = 4
+quality = 3
