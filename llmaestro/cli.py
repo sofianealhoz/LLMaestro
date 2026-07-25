@@ -1,0 +1,226 @@
+"""Command line entry point.
+
+    python3 -m llmaestro "translate to French: hello"
+    python3 -m llmaestro --check
+    python3 -m llmaestro --batch prompts.txt --workers 4 --policy latency
+    python3 -m llmaestro --image screenshot.png "what does this say?"
+
+--check is the diagnostic to reach for first: it says which providers the
+catalogue declares, which ones have their key, which are unreachable and how
+much quota is left. --dry-run runs the whole path through a local fake provider,
+so everything is exercisable with no key and no network.
+"""
+
+from __future__ import annotations
+
+import argparse
+import json
+import sys
+
+from .config import POLICIES, DEFAULT_CATALOGUE, load_catalogue, load_env
+from .errors import AllProvidersFailed
+from .limits import Ledger
+from .pool import WorkerPool
+from .providers import build_all
+from .providers.echo import Echo
+from .router import Router, Task
+
+
+def main(argv=None) -> int:
+    args = _parse(argv)
+    load_env(args.env)
+
+    if args.dry_run:
+        providers, skipped, ledger = [Echo()], [], None
+    else:
+        try:
+            specs, skipped = load_catalogue(args.config)
+        except (OSError, ValueError) as error:
+            print(f"config error: {error}", file=sys.stderr)
+            return 2
+        providers = build_all(specs)
+        ledger = None if args.no_ledger else Ledger()
+
+    if args.check:
+        return _check(providers, skipped, ledger, args)
+
+    if not providers:
+        print(
+            "no usable provider: copy .env.example to .env and fill in one key, "
+            "or run with --dry-run",
+            file=sys.stderr,
+        )
+        return 2
+
+    prompts = _prompts(args)
+    if not prompts:
+        print("nothing to do: give a prompt, --batch a file, or use --check", file=sys.stderr)
+        return 2
+
+    router = Router(providers, ledger=ledger, retries=args.retries)
+    options = {
+        "policy": args.policy,
+        "require": tuple(args.require),
+        "max_tokens": args.max_tokens,
+        "temperature": args.temperature,
+        "timeout": args.timeout,
+    }
+
+    if len(prompts) == 1:
+        return _single(router, prompts[0], args, options)
+    return _batch(router, prompts, args, options)
+
+
+def _single(router: Router, prompt: str, args, options) -> int:
+    task = Task.from_prompt(prompt, images=tuple(args.image), **options)
+    try:
+        completion = router.complete(task)
+    except AllProvidersFailed as failure:
+        _report_failure(failure)
+        return 1
+
+    if args.json:
+        print(
+            json.dumps(
+                {
+                    "text": completion.text,
+                    "provider": completion.provider,
+                    "model": completion.model,
+                    "latency": round(completion.latency, 3),
+                    "tokens": completion.tokens,
+                },
+                ensure_ascii=False,
+            )
+        )
+    else:
+        print(completion.text)
+        print(
+            f"\n[{completion.provider} {completion.model} "
+            f"{completion.latency:.2f}s {completion.tokens} tokens]",
+            file=sys.stderr,
+        )
+    return 0
+
+
+def _batch(router: Router, prompts: list[str], args, options) -> int:
+    tasks = [Task.from_prompt(prompt, **options) for prompt in prompts]
+    results = WorkerPool(router, args.workers).run(tasks)
+    failures = [result for result in results if not result.ok]
+
+    if args.json:
+        print(
+            json.dumps(
+                [
+                    {
+                        "index": result.index,
+                        "ok": result.ok,
+                        "text": result.text,
+                        "provider": result.completion.provider if result.completion else None,
+                        "error": str(result.error) if result.error else None,
+                    }
+                    for result in results
+                ],
+                ensure_ascii=False,
+                indent=2,
+            )
+        )
+    else:
+        for result in results:
+            head = f"{result.index + 1:>3}."
+            if result.ok:
+                print(f"{head} [{result.completion.provider}] {result.text}")
+            else:
+                print(f"{head} FAILED {result.error}")
+
+    print(
+        f"\n[{len(results) - len(failures)}/{len(results)} succeeded "
+        f"on {args.workers} workers]",
+        file=sys.stderr,
+    )
+    return 1 if failures else 0
+
+
+def _check(providers, skipped, ledger, args) -> int:
+    print(f"catalogue: {args.config}")
+    if not providers:
+        print("  no usable provider")
+    for provider in providers:
+        spec = provider.spec
+        marks = []
+        if spec.vision:
+            marks.append("vision")
+        if spec.tools:
+            marks.append("tools")
+        state = "ready" if provider.available() else "unreachable"
+        print(
+            f"  {spec.name:<16} {state:<12} {spec.model:<34} "
+            f"ctx {spec.context_window:<7} cost {spec.cost} "
+            f"latency {spec.latency} quality {spec.quality}"
+            + (f" [{', '.join(marks)}]" if marks else "")
+        )
+        if ledger is not None:
+            for kind, values in ledger.snapshot(spec).items():
+                if values["limit"] is not None:
+                    print(f"      {kind}: {values['used']}/{values['limit']}")
+
+    for name, reason in skipped:
+        print(f"  {name:<16} skipped      {reason}")
+
+    if ledger is not None:
+        ledger.close()
+    return 0 if providers else 1
+
+
+def _prompts(args) -> list[str]:
+    prompts = []
+    if args.prompt:
+        prompts.append(args.prompt)
+    if args.batch:
+        with open(args.batch, encoding="utf-8") as handle:
+            prompts.extend(
+                line.strip()
+                for line in handle
+                if line.strip() and not line.lstrip().startswith("#")
+            )
+    return prompts
+
+
+def _report_failure(failure: AllProvidersFailed) -> None:
+    print(str(failure), file=sys.stderr)
+    for attempt in failure.attempts:
+        prefix = "tried" if attempt.tried else "     "
+        print(f"  {prefix} {attempt.provider}: {attempt.error}", file=sys.stderr)
+
+
+def _parse(argv):
+    parser = argparse.ArgumentParser(
+        prog="llmaestro",
+        description="Route a task to the provider that can do it cheapest.",
+    )
+    parser.add_argument("prompt", nargs="?", help="the prompt to send")
+    parser.add_argument("--batch", metavar="FILE", help="one prompt per line, run through the pool")
+    parser.add_argument("--workers", type=int, default=4, help="pool size for --batch")
+    parser.add_argument("--policy", choices=POLICIES, default="cost", help="how to rank providers")
+    parser.add_argument(
+        "--require",
+        action="append",
+        default=[],
+        metavar="CAPABILITY",
+        help="only providers with this capability (vision, tools)",
+    )
+    parser.add_argument(
+        "--image", action="append", default=[], metavar="PATH", help="attach an image"
+    )
+    parser.add_argument("--max-tokens", type=int, default=512)
+    parser.add_argument("--temperature", type=float, default=0.2)
+    parser.add_argument("--timeout", type=float, default=30.0)
+    parser.add_argument("--retries", type=int, default=1, help="retries per provider")
+    parser.add_argument("--config", default=DEFAULT_CATALOGUE, help="provider catalogue")
+    parser.add_argument("--env", default=".env", help="file holding the keys")
+    parser.add_argument("--json", action="store_true", help="machine-readable output")
+    parser.add_argument("--check", action="store_true", help="report the configuration and quit")
+    parser.add_argument(
+        "--dry-run", action="store_true", help="use a local fake provider, no network"
+    )
+    parser.add_argument("--no-ledger", action="store_true", help="do not persist quota usage")
+    return parser.parse_args(argv)
