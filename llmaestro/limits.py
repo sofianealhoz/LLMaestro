@@ -92,6 +92,11 @@ class Ledger:
         learned = {}
         with self._lock:
             for kind, window in WINDOWS.items():
+                # Only refine a limit the catalogue actually declares. Without a
+                # declared value there is nothing tying the refusal to this
+                # window, and guessing one taught a daily cap of 1.
+                if getattr(spec, kind, None) is None:
+                    continue
                 observed = self._used(spec, window, counting_tokens=kind in TOKEN_KINDS)
                 if observed <= 0:
                     continue
@@ -101,6 +106,19 @@ class Ledger:
                 self._remember(spec, kind, observed)
                 learned[kind] = observed
         return learned
+
+    def forget_learned(self, spec: ProviderSpec | None = None) -> int:
+        """Drop learned limits. Needed when a bad run taught nonsense."""
+        with self._lock:
+            with self._db:
+                if spec is None:
+                    cursor = self._db.execute("DELETE FROM learned")
+                else:
+                    cursor = self._db.execute(
+                        "DELETE FROM learned WHERE provider = ? AND model = ?",
+                        (spec.name, spec.model),
+                    )
+            return cursor.rowcount
 
     def snapshot(self, spec: ProviderSpec) -> dict:
         """Usage and effective limits, for the --check report."""

@@ -75,6 +75,15 @@ class Learning(unittest.TestCase):
     def tearDown(self):
         self.ledger.close()
 
+    def test_a_window_the_catalogue_ignores_is_never_learned(self):
+        provider = spec("cerebras", rpm=1000)  # no rpd declared
+        self.ledger.record(provider)
+
+        learned = self.ledger.learn_from_refusal(provider)
+
+        self.assertEqual(["rpm"], list(learned))
+        self.assertIsNone(self.ledger.snapshot(provider)["rpd"]["limit"])
+
     def test_a_refusal_tightens_an_optimistic_catalogue(self):
         provider = spec("cerebras", rpm=1000)
         for _ in range(3):
@@ -95,6 +104,16 @@ class Learning(unittest.TestCase):
         self.ledger.learn_from_refusal(provider)
 
         self.assertEqual(2, self.ledger.snapshot(provider)["rpm"]["limit"])
+
+    def test_learned_limits_can_be_dropped(self):
+        provider = spec("cerebras", rpm=1000)
+        self.ledger.record(provider)
+        self.ledger.learn_from_refusal(provider)
+        self.assertEqual(1, self.ledger.snapshot(provider)["rpm"]["limit"])
+
+        self.assertEqual(1, self.ledger.forget_learned())
+
+        self.assertEqual(1000, self.ledger.snapshot(provider)["rpm"]["limit"])
 
     def test_snapshot_reports_usage_against_the_effective_limit(self):
         provider = spec("groq", rpm=5, tpm=100)

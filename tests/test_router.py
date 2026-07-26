@@ -147,6 +147,20 @@ class Eligibility(unittest.TestCase):
         self.assertEqual("done", completion.text)
         self.assertEqual(0, down.calls)
 
+    def test_a_refused_call_still_counts_against_the_quota(self):
+        # Otherwise a burst of 429s teaches the ledger a ceiling far below the
+        # real one, and the provider stays crippled afterwards.
+        clock = FakeClock()
+        ledger = Ledger(":memory:", clock=clock)
+        flaky = Scripted("flaky", [RateLimited("flaky", "slow down", retry_after=90)], cost=1)
+        backup = Scripted("backup", ["done"], cost=2)
+        subject = router([flaky, backup], ledger=ledger, retries=0)
+
+        subject.complete(prompt())
+
+        self.assertEqual(1, ledger.snapshot(flaky.spec)["rpm"]["used"])
+        ledger.close()
+
     def test_an_exhausted_quota_removes_a_provider_before_the_call(self):
         clock = FakeClock()
         ledger = Ledger(":memory:", clock=clock)

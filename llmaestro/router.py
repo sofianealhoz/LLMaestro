@@ -103,6 +103,10 @@ class Router:
                     attempts.append(
                         Attempt(provider.name, str(error), self._clock() - started)
                     )
+                    # A refused call still spent the provider's budget, so it has
+                    # to be counted before the refusal is turned into a limit.
+                    if self.ledger is not None:
+                        self.ledger.record(provider.spec, 0)
                     self._penalise(provider, error)
                     wait = self._wait_before_retry(error, attempt_number)
                     if wait is None:

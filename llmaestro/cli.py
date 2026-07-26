@@ -198,6 +198,8 @@ def _watch(argv) -> int:
 
 
 def _check(providers, skipped, ledger, args) -> int:
+    if args.reset_learned and ledger is not None:
+        print(f"cleared {ledger.forget_learned()} learned limits")
     print(f"catalogue: {args.config}")
     if not providers:
         print("  no usable provider")
@@ -317,4 +319,9 @@ def _parse(argv):
         "--dry-run", action="store_true", help="use a local fake provider, no network"
     )
     parser.add_argument("--no-ledger", action="store_true", help="do not persist quota usage")
+    parser.add_argument(
+        "--reset-learned",
+        action="store_true",
+        help="with --check, drop the limits learned from refusals",
+    )
     return parser.parse_args(argv)
