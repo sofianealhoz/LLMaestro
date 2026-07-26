@@ -113,6 +113,17 @@ class Eligibility(unittest.TestCase):
         self.assertEqual("right", completion.text)
         self.assertEqual(0, blind.calls)
 
+    def test_a_task_with_tools_only_goes_to_providers_that_support_them(self):
+        plain = Scripted("plain", ["wrong"], tools=False, cost=1)
+        capable = Scripted("capable", ["right"], tools=True, cost=9)
+        schema = {"name": "read_file", "parameters": {}}
+
+        completion = router([plain, capable]).complete(prompt(tools=(schema,)))
+
+        self.assertEqual("right", completion.text)
+        self.assertEqual(0, plain.calls)
+        self.assertEqual((schema,), capable.tools_seen[0], "the schemas must reach the provider")
+
     def test_a_required_capability_is_enforced(self):
         plain = Scripted("plain", ["wrong"], tools=False, cost=1)
         capable = Scripted("capable", ["right"], tools=True, cost=9)

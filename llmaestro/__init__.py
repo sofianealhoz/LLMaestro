@@ -23,7 +23,15 @@ from .errors import (
     RateLimited,
 )
 from .limits import Ledger
-from .messages import Message, assistant, estimate_tokens, system, user
+from .messages import (
+    Message,
+    ToolCall,
+    assistant,
+    estimate_tokens,
+    system,
+    tool_result,
+    user,
+)
 from .pool import Result, WorkerPool, run_prompts
 from .providers import Completion, Provider, build, build_all
 from .router import Attempt, Router, Task
@@ -49,6 +57,7 @@ __all__ = [
     "Result",
     "Router",
     "Task",
+    "ToolCall",
     "WorkerPool",
     "assistant",
     "build",
@@ -58,6 +67,7 @@ __all__ = [
     "load_env",
     "run_prompts",
     "system",
+    "tool_result",
     "user",
     "__version__",
 ]

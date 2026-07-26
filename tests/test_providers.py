@@ -134,6 +134,92 @@ class OpenAIShape(unittest.TestCase):
         headers = sent.call_args.args[2]
         self.assertEqual("Bearer secret", headers["authorization"])
 
+    def test_a_tool_call_is_parsed_into_a_toolcall(self):
+        body = json.dumps(
+            {
+                "choices": [
+                    {
+                        "finish_reason": "tool_calls",
+                        "message": {
+                            "content": None,
+                            "tool_calls": [
+                                {
+                                    "id": "call_1",
+                                    "type": "function",
+                                    "function": {
+                                        "name": "read_file",
+                                        "arguments": '{"path": "README.md"}',
+                                    },
+                                }
+                            ],
+                        },
+                    }
+                ]
+            }
+        )
+
+        completion, sent = self.call(Response(200, body))
+
+        self.assertTrue(completion.wants_tools)
+        self.assertEqual("read_file", completion.tool_calls[0].name)
+        self.assertEqual({"path": "README.md"}, completion.tool_calls[0].arguments)
+        self.assertEqual("", completion.text)
+        self.assertEqual("tool_calls", completion.finish_reason)
+
+    def test_broken_tool_arguments_do_not_crash_the_run(self):
+        body = json.dumps(
+            {
+                "choices": [
+                    {
+                        "message": {
+                            "content": None,
+                            "tool_calls": [
+                                {"function": {"name": "search", "arguments": "{not json"}}
+                            ],
+                        }
+                    }
+                ]
+            }
+        )
+
+        completion, _ = self.call(Response(200, body))
+
+        self.assertEqual({}, completion.tool_calls[0].arguments)
+
+    def test_an_empty_answer_without_a_tool_call_is_refused(self):
+        body = json.dumps({"choices": [{"message": {"content": None}}]})
+
+        with self.assertRaises(BadResponse):
+            self.call(Response(200, body))
+
+    def test_tools_are_sent_in_the_openai_shape(self):
+        schema = {"name": "read_file", "description": "read", "parameters": {}}
+        body = json.dumps({"choices": [{"message": {"content": "ok"}}]})
+
+        with mock.patch(
+            "llmaestro.providers.openai_compat.post_json", return_value=Response(200, body)
+        ) as sent:
+            self.provider.complete([user("hello")], tools=[schema])
+
+        payload = sent.call_args.args[1]
+        self.assertEqual([{"type": "function", "function": schema}], payload["tools"])
+        self.assertEqual("auto", payload["tool_choice"])
+
+    def test_a_tool_result_travels_with_its_call_id(self):
+        from llmaestro.messages import ToolCall, assistant, tool_result
+
+        call = ToolCall("call_7", "read_file", {"path": "a.py"})
+
+        asked = self.provider._wire(assistant("", [call]))
+        answered = self.provider._wire(tool_result(call, "file content"))
+
+        self.assertIsNone(asked["content"])
+        self.assertEqual("call_7", asked["tool_calls"][0]["id"])
+        self.assertEqual('{"path": "a.py"}', asked["tool_calls"][0]["function"]["arguments"])
+        self.assertEqual(
+            {"role": "tool", "tool_call_id": "call_7", "content": "file content"}, answered
+        )
+
     def test_named_rate_limit_headers_are_read(self):
         from llmaestro.providers.base import read_limits
 

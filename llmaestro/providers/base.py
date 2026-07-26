@@ -46,10 +46,16 @@ class Completion:
     prompt_tokens: int = 0
     completion_tokens: int = 0
     limits: dict = field(default_factory=dict)
+    tool_calls: tuple = ()
+    finish_reason: str = ""
 
     @property
     def tokens(self) -> int:
         return self.prompt_tokens + self.completion_tokens
+
+    @property
+    def wants_tools(self) -> bool:
+        return bool(self.tool_calls)
 
 
 def read_limits(headers: dict) -> dict:
@@ -91,7 +97,9 @@ class Provider:
         """What the provider actually serves. None when it cannot be listed."""
         return None
 
-    def complete(self, messages, *, max_tokens=512, temperature=0.2, timeout=30.0) -> Completion:
+    def complete(
+        self, messages, *, max_tokens=512, temperature=0.2, timeout=30.0, tools=()
+    ) -> Completion:
         raise NotImplementedError
 
     def __repr__(self) -> str:

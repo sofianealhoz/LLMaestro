@@ -23,7 +23,7 @@ class Counting(Provider):
         self._inside = 0
         self._lock = threading.Lock()
 
-    def complete(self, messages, *, max_tokens=512, temperature=0.2, timeout=30.0):
+    def complete(self, messages, *, max_tokens=512, temperature=0.2, timeout=30.0, tools=()):
         with self._lock:
             self.calls += 1
             self._inside += 1

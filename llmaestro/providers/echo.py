@@ -15,7 +15,9 @@ class Echo(Provider):
         super().__init__(spec or default_spec())
         self.latency = latency
 
-    def complete(self, messages, *, max_tokens=512, temperature=0.2, timeout=30.0) -> Completion:
+    def complete(
+        self, messages, *, max_tokens=512, temperature=0.2, timeout=30.0, tools=()
+    ) -> Completion:
         if self.latency:
             time.sleep(self.latency)
         last = messages[-1] if messages else None

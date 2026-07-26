@@ -43,13 +43,17 @@ class Scripted(Provider):
         self.script = list(script)
         self.calls = 0
         self.seen = []
+        self.tools_seen = []
 
-    def complete(self, messages, *, max_tokens=512, temperature=0.2, timeout=30.0):
+    def complete(self, messages, *, max_tokens=512, temperature=0.2, timeout=30.0, tools=()):
         self.calls += 1
         self.seen.append(messages)
+        self.tools_seen.append(tools)
         step = self.script[min(self.calls - 1, len(self.script) - 1)]
         if isinstance(step, BaseException):
             raise step
+        if isinstance(step, Completion):
+            return step
         return Completion(
             text=step,
             provider=self.name,

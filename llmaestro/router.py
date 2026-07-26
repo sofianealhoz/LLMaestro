@@ -32,6 +32,7 @@ class Task:
     max_tokens: int = 512
     temperature: float = 0.2
     timeout: float = 30.0
+    tools: tuple = ()
 
     @classmethod
     def from_prompt(cls, prompt: str, images=(), **options) -> "Task":
@@ -85,6 +86,7 @@ class Router:
                         max_tokens=task.max_tokens,
                         temperature=task.temperature,
                         timeout=task.timeout,
+                        tools=task.tools,
                     )
                 except ProviderError as error:
                     attempts.append(
@@ -161,6 +163,8 @@ class Router:
         required = set(task.require)
         if needs_vision(task.messages):
             required.add("vision")
+        if task.tools:
+            required.add("tools")
         size = self._estimate(task)
         now = self._clock()
 

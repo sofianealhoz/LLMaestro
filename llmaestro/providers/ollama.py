@@ -5,7 +5,7 @@ from __future__ import annotations
 import time
 
 from ..errors import BadResponse, ProviderError
-from ..messages import read_image
+from ..messages import ToolCall, read_image
 from ..transport import get, post_json
 from .base import Completion, Provider, parse_json, raise_for_status
 
@@ -47,13 +47,19 @@ class Ollama(Provider):
             return None
         return sorted(str(e["name"]) for e in entries if isinstance(e, dict) and e.get("name"))
 
-    def complete(self, messages, *, max_tokens=512, temperature=0.2, timeout=120.0) -> Completion:
+    def complete(
+        self, messages, *, max_tokens=512, temperature=0.2, timeout=120.0, tools=()
+    ) -> Completion:
         payload = {
             "model": self.spec.model,
             "messages": [self._wire(message) for message in messages],
             "stream": False,
             "options": {"temperature": temperature, "num_predict": max_tokens},
         }
+        if tools:
+            payload["tools"] = [
+                {"type": "function", "function": schema} for schema in tools
+            ]
         started = time.monotonic()
         response = post_json(
             f"{self.spec.base_url.rstrip('/')}/api/chat", payload, None, timeout, self.name
@@ -62,9 +68,15 @@ class Ollama(Provider):
         body = parse_json(self.name, response)
         elapsed = time.monotonic() - started
 
-        text = (body.get("message") or {}).get("content")
+        answer = body.get("message") or {}
+        calls = _tool_calls(answer.get("tool_calls"))
+        text = answer.get("content")
+        if text is None:
+            text = ""
         if not isinstance(text, str):
-            raise BadResponse(self.name, "no message.content in payload")
+            raise BadResponse(self.name, "message content is not a string")
+        if not text and not calls:
+            raise BadResponse(self.name, "empty answer with no tool call")
 
         return Completion(
             text=text,
@@ -73,10 +85,40 @@ class Ollama(Provider):
             latency=elapsed,
             prompt_tokens=int(body.get("prompt_eval_count") or 0),
             completion_tokens=int(body.get("eval_count") or 0),
+            tool_calls=calls,
+            finish_reason=str(body.get("done_reason") or ""),
         )
 
     def _wire(self, message) -> dict:
+        if message.role == "tool":
+            return {"role": "tool", "content": message.text}
         wire = {"role": message.role, "content": message.text}
+        if message.tool_calls:
+            wire["tool_calls"] = [
+                {"function": {"name": call.name, "arguments": call.arguments}}
+                for call in message.tool_calls
+            ]
         if message.images:
             wire["images"] = [read_image(path)[1] for path in message.images]
         return wire
+
+
+def _tool_calls(raw) -> tuple:
+    """Ollama sends arguments already decoded and gives no call id."""
+    if not isinstance(raw, list):
+        return ()
+    calls = []
+    for entry in raw:
+        function = (entry or {}).get("function") or {}
+        name = function.get("name")
+        if not name:
+            continue
+        arguments = function.get("arguments")
+        calls.append(
+            ToolCall(
+                id=str(entry.get("id") or f"call_{len(calls)}"),
+                name=str(name),
+                arguments=arguments if isinstance(arguments, dict) else {},
+            )
+        )
+    return tuple(calls)
