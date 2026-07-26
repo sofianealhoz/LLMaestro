@@ -7,9 +7,11 @@
 floor = 4
 
 [sources.github]
-topics = ["claude-code", "mcp", "agent-skills"]
+topics = ["claude-code", "agent-skills", "mcp"]
 per_topic = 15
 since_days = 14
+# Topic search sorted by activity is mostly empty repositories below this.
+min_stars = 3
 repos = ["anthropics/claude-code"]
 release_limit = 3
 

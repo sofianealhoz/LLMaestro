@@ -53,6 +53,7 @@ class Router:
         retries: int = 1,
         backoff: float = 0.5,
         max_wait: float = 5.0,
+        patience: float = 0.0,
         clock=time.monotonic,
         sleep=time.sleep,
     ):
@@ -63,6 +64,7 @@ class Router:
         self.retries = max(0, retries)
         self.backoff = backoff
         self.max_wait = max_wait
+        self.patience = max(0.0, patience)
         self._clock = clock
         self._sleep = sleep
         self._lock = threading.Lock()
@@ -70,6 +72,8 @@ class Router:
 
     def complete(self, task: Task):
         eligible, rejected = self._candidates(task)
+        if not eligible and self.patience:
+            eligible, rejected = self._wait_for_quota(task, rejected)
         attempts = list(rejected)
 
         for provider in eligible:
@@ -129,6 +133,29 @@ class Router:
                 row["usage"] = self.ledger.snapshot(provider.spec)
             rows.append(row)
         return rows
+
+    def _wait_for_quota(self, task: Task, rejected):
+        """Sit out a full rate limit window instead of failing, when nothing else is wrong."""
+        if self.ledger is None:
+            return [], rejected
+        spent = 0.0
+        while spent < self.patience:
+            hints = [
+                hint
+                for provider in self.providers
+                if (hint := self.ledger.wait_hint(provider.spec, self._estimate(task))) is not None
+            ]
+            if not hints:
+                return [], rejected
+            pause = min(min(hints) + 0.5, self.patience - spent)
+            if pause <= 0:
+                break
+            self._sleep(pause)
+            spent += pause
+            eligible, rejected = self._candidates(task)
+            if eligible:
+                return eligible, rejected
+        return [], rejected
 
     def _candidates(self, task: Task):
         required = set(task.require)

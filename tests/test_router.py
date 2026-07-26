@@ -161,6 +161,34 @@ class Eligibility(unittest.TestCase):
         self.assertEqual(1, ledger.snapshot(flaky.spec)["rpm"]["used"])
         ledger.close()
 
+    def test_with_patience_the_router_waits_out_the_window(self):
+        clock = FakeClock()
+        ledger = Ledger(":memory:", clock=clock)
+        sleeps = Sleeps()
+        only = Scripted("only", ["first", "second"], rpm=1)
+        # The ledger runs on its own clock, so waiting has to move it too.
+        subject = router([only], ledger=ledger, patience=120, sleep=lambda s: (
+            sleeps(s), clock.advance(s)
+        ))
+
+        self.assertEqual("first", subject.complete(prompt()).text)
+        self.assertEqual("second", subject.complete(prompt()).text)
+        self.assertGreater(sleeps.total, 55, "it should have sat out the minute window")
+        ledger.close()
+
+    def test_without_patience_an_exhausted_quota_fails_immediately(self):
+        clock = FakeClock()
+        ledger = Ledger(":memory:", clock=clock)
+        sleeps = Sleeps()
+        only = Scripted("only", ["first", "second"], rpm=1)
+        subject = router([only], ledger=ledger, sleep=sleeps)
+
+        subject.complete(prompt())
+        with self.assertRaises(AllProvidersFailed):
+            subject.complete(prompt())
+        self.assertEqual([], sleeps.waits)
+        ledger.close()
+
     def test_an_exhausted_quota_removes_a_provider_before_the_call(self):
         clock = FakeClock()
         ledger = Ledger(":memory:", clock=clock)

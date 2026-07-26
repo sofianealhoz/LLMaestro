@@ -161,7 +161,9 @@ def _watch(argv) -> int:
             print("no provider configured: run with --no-score to collect only", file=sys.stderr)
             return 2
         ledger = Ledger()
-        router = Router(build_all(specs), ledger=ledger, retries=args.retries)
+        router = Router(
+            build_all(specs), ledger=ledger, retries=args.retries, patience=args.patience
+        )
 
     try:
         config = watch_module.load_config(args.watch_config)
@@ -275,6 +277,12 @@ def _parse_watch(argv):
     parser.add_argument("--limit", type=int, help="score at most this many new items")
     parser.add_argument("--workers", type=int, default=4)
     parser.add_argument("--retries", type=int, default=1)
+    parser.add_argument(
+        "--patience",
+        type=float,
+        default=600.0,
+        help="seconds to wait out a rate limit window instead of giving up (0 to fail fast)",
+    )
     parser.add_argument("--no-score", action="store_true", help="collect only, no provider needed")
     parser.add_argument(
         "--no-write", action="store_true", help="print the digest instead of writing out/"

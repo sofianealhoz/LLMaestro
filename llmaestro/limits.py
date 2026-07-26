@@ -70,6 +70,28 @@ class Ledger:
                     return False, f"{kind} reached ({used}/{limit})"
         return True, ""
 
+    def wait_hint(self, spec: ProviderSpec, tokens: int = 0) -> float | None:
+        """Seconds until this provider has room again. None when it is not the quota blocking."""
+        waits = []
+        now = self._clock()
+        with self._lock:
+            for kind, window in WINDOWS.items():
+                limit = self._effective(spec, kind)
+                if limit is None:
+                    continue
+                counting = kind in TOKEN_KINDS
+                used = self._used(spec, window, counting_tokens=counting)
+                if used + (tokens if counting else 1) <= limit:
+                    continue
+                oldest = self._db.execute(
+                    "SELECT MIN(ts) FROM usage WHERE provider = ? AND model = ? AND ts >= ?",
+                    (spec.name, spec.model, now - window),
+                ).fetchone()[0]
+                if oldest is None:
+                    continue
+                waits.append(max(0.0, oldest + window - now))
+        return max(waits) if waits else None
+
     def record(self, spec: ProviderSpec, tokens: int = 0) -> None:
         with self._lock:
             with self._db:
