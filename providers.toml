@@ -25,9 +25,11 @@ tools = true
 cost = 2
 latency = 1
 quality = 3
-rpm = 30
-rpd = 14400
-tpm = 60000
+# Values the API reports in its own x-ratelimit headers, which the ledger
+# refreshes on every successful call.
+rpm = 5
+rpd = 2400
+tpm = 30000
 tpd = 1000000
 
 [[provider]]

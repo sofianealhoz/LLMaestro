@@ -87,6 +87,15 @@ class Ledger:
                     (spec.name, spec.model, self._clock(), max(0, int(tokens))),
                 )
 
+    def declare(self, spec: ProviderSpec, limits: dict) -> None:
+        """Record what the provider says about itself. Beats any guess."""
+        if not limits:
+            return
+        with self._lock:
+            for kind, value in limits.items():
+                if kind in WINDOWS and value:
+                    self._remember(spec, kind, value)
+
     def learn_from_refusal(self, spec: ProviderSpec) -> dict:
         """Turn a 429 into knowledge: what we just spent is the real ceiling."""
         learned = {}

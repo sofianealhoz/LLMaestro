@@ -134,6 +134,32 @@ class OpenAIShape(unittest.TestCase):
         headers = sent.call_args.args[2]
         self.assertEqual("Bearer secret", headers["authorization"])
 
+    def test_named_rate_limit_headers_are_read(self):
+        from llmaestro.providers.base import read_limits
+
+        found = read_limits(
+            {
+                "x-ratelimit-limit-requests-minute": "5",
+                "x-ratelimit-limit-tokens-minute": "30000",
+                "x-ratelimit-limit-requests": "14400",
+                "x-ratelimit-remaining-requests-minute": "1",
+            }
+        )
+
+        self.assertEqual({"rpm": 5, "tpm": 30000}, found)
+
+    def test_a_completion_carries_the_declared_limits(self):
+        body = json.dumps({"choices": [{"message": {"content": "ok"}}]})
+        headers = {"x-ratelimit-limit-requests-minute": "5"}
+
+        with mock.patch(
+            "llmaestro.providers.openai_compat.post_json",
+            return_value=Response(200, body, headers),
+        ):
+            completion = self.provider.complete([user("hello")])
+
+        self.assertEqual({"rpm": 5}, completion.limits)
+
     def test_the_served_models_can_be_listed(self):
         body = json.dumps({"data": [{"id": "zai-glm-4.7"}, {"id": "gpt-oss-120b"}]})
 

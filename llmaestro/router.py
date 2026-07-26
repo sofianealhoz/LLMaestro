@@ -116,6 +116,7 @@ class Router:
 
                 self._clear(provider)
                 if self.ledger is not None:
+                    self.ledger.declare(provider.spec, completion.limits)
                     self.ledger.record(
                         provider.spec, completion.tokens or self._estimate(task)
                     )

@@ -8,7 +8,7 @@ provider therefore never means teaching the router anything new.
 from __future__ import annotations
 
 import json
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 from ..errors import (
     AuthError,
@@ -31,6 +31,17 @@ CONTEXT_MARKERS = (
 )
 
 
+# Providers that name the window in the header say exactly which limit applies.
+# The bare OpenAI spelling (x-ratelimit-limit-requests) does not, so it is left
+# alone rather than guessed at.
+RATE_HEADERS = {
+    "x-ratelimit-limit-requests-minute": "rpm",
+    "x-ratelimit-limit-requests-day": "rpd",
+    "x-ratelimit-limit-tokens-minute": "tpm",
+    "x-ratelimit-limit-tokens-day": "tpd",
+}
+
+
 @dataclass
 class Completion:
     text: str
@@ -39,10 +50,27 @@ class Completion:
     latency: float
     prompt_tokens: int = 0
     completion_tokens: int = 0
+    limits: dict = field(default_factory=dict)
 
     @property
     def tokens(self) -> int:
         return self.prompt_tokens + self.completion_tokens
+
+
+def read_limits(headers: dict) -> dict:
+    """Quotas the provider states about itself, when it names the window."""
+    found = {}
+    for header, kind in RATE_HEADERS.items():
+        raw = headers.get(header)
+        if raw is None:
+            continue
+        try:
+            value = int(float(raw))
+        except (TypeError, ValueError):
+            continue
+        if value > 0:
+            found[kind] = value
+    return found
 
 
 class Provider:

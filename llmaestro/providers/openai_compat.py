@@ -12,7 +12,7 @@ import time
 from ..errors import BadResponse, ProviderError
 from ..messages import read_image
 from ..transport import get, post_json
-from .base import Completion, Provider, parse_json, raise_for_status
+from .base import Completion, Provider, parse_json, raise_for_status, read_limits
 
 
 class OpenAICompatible(Provider):
@@ -68,6 +68,7 @@ class OpenAICompatible(Provider):
             latency=elapsed,
             prompt_tokens=int(usage.get("prompt_tokens") or 0),
             completion_tokens=int(usage.get("completion_tokens") or 0),
+            limits=read_limits(response.headers),
         )
 
     def _wire(self, message) -> dict:

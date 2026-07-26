@@ -75,6 +75,14 @@ class Learning(unittest.TestCase):
     def tearDown(self):
         self.ledger.close()
 
+    def test_what_the_provider_declares_wins_over_the_catalogue(self):
+        provider = spec("cerebras", rpm=30)
+
+        self.ledger.declare(provider, {"rpm": 5, "tpm": 30000})
+
+        self.assertEqual(5, self.ledger.snapshot(provider)["rpm"]["limit"])
+        self.assertEqual(30000, self.ledger.snapshot(provider)["tpm"]["limit"])
+
     def test_a_window_the_catalogue_ignores_is_never_learned(self):
         provider = spec("cerebras", rpm=1000)  # no rpd declared
         self.ledger.record(provider)
