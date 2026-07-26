@@ -1,9 +1,4 @@
-"""Error taxonomy for provider calls.
-
-The router only needs to answer two questions about a failure:
-is it worth retrying on the *same* provider, and should the provider be
-taken out of the rotation for a while. Every error below answers both.
-"""
+"""Error taxonomy. Each one answers: retry the same provider, and skip it for how long."""
 
 
 class LLMaestroError(Exception):
@@ -13,8 +8,8 @@ class LLMaestroError(Exception):
 class ProviderError(LLMaestroError):
     """A call to one provider failed.
 
-    retryable      the same provider may succeed if we try again
-    disable_for    seconds the provider should be skipped entirely (0 = keep it)
+    retryable: the same provider may succeed on a second try.
+    disable_for: seconds to skip it entirely, 0 to keep it in rotation.
     """
 
     retryable = False
@@ -47,11 +42,7 @@ class RateLimited(ProviderError):
 
 
 class ContextTooLarge(ProviderError):
-    """The prompt exceeds what this provider accepts.
-
-    Retrying is pointless, but a provider with a bigger window may take it,
-    so the router moves on instead of giving up.
-    """
+    """Prompt too big for this provider. No retry, but a bigger window may take it."""
 
 
 class AuthError(ProviderError):
@@ -67,10 +58,7 @@ class BadResponse(ProviderError):
 
 
 class AllProvidersFailed(LLMaestroError):
-    """Every provider in the chain was exhausted.
-
-    attempts is the ordered log of what was tried, for diagnostics.
-    """
+    """Chain exhausted. attempts is the ordered log of what was tried."""
 
     def __init__(self, attempts):
         self.attempts = attempts

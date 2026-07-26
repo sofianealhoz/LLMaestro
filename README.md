@@ -70,6 +70,7 @@ actions (search, browse, read external data).
 | **Worker pool** | a queue drained by N threads sharing one router, so cooldowns and quota learned by one worker apply at once to the others | implemented |
 | **Cloud providers** | Cerebras, Groq, OpenRouter behind a unified interface | implemented |
 | **Local inference** | Ollama (open-weights, on-device, sovereign), including vision models | implemented |
+| **Tech watch** | collects new repositories, posts and releases, scores each one through the pool, writes a ranked digest | implemented: see [`docs/WATCH.md`](docs/WATCH.md) |
 | **Tool-use connectors** | self-contained tools an agent can call (e.g. Reddit search) | implemented, first connector: see [`connectors/`](connectors/) |
 | **MCP integrations** | Model Context Protocol servers (browser automation, external data) | documented: see [`docs/MCP-INTEGRATIONS.md`](docs/MCP-INTEGRATIONS.md) |
 | **Output evaluation** | scoring / QA pass on model outputs | planned |
@@ -82,11 +83,13 @@ actions (search, browse, read external data).
 ```
 llmaestro/       the package: router, quota ledger, worker pool, provider clients
   providers/     one client per wire protocol (OpenAI-compatible, Ollama)
+  watch/         the tech watch job: collectors, dedup, scoring, digest
 tests/           offline test suite, no key and no network required
 connectors/      tool-use connectors (self-contained, callable by the orchestrator)
 docs/            architecture deep-dives and integration notes
 providers.toml   provider catalogue: models, capabilities, ranks, known quotas
 .env.example     the keys to fill in, copy to .env
+watch.example.toml  watch sources and scoring axes, copy to watch.toml
 pyproject.toml   packaging, no runtime dependencies
 README.md        this file
 LICENSE          MIT
@@ -160,6 +163,9 @@ python3 -m llmaestro --image screenshot.png "what does this say?"
 
 # the whole path with a local fake provider: no key, no network
 python3 -m llmaestro --dry-run "hello"
+
+# the tech watch: collect, score, write a ranked digest
+python3 -m llmaestro watch --limit 40
 ```
 
 From Python:

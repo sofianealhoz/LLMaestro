@@ -1,4 +1,4 @@
-"""One short call per item, sent to the cheapest provider through the pool."""
+"""One short call per item, through the pool."""
 
 from __future__ import annotations
 

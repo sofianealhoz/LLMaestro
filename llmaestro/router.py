@@ -1,21 +1,4 @@
-"""Provider selection: where a task runs, and what happens when that fails.
-
-Three decisions live here.
-
-Eligibility: a provider is a candidate only if it has the capabilities the task
-requires, a context window large enough, no active cooldown, and quota left in
-the ledger. Providers ruled out are recorded with their reason, so a total
-failure explains itself instead of just saying no.
-
-Order: whichever rank the requested policy names, cost by default. The `reliable`
-policy ignores the catalogue and prefers whatever has been failing the least.
-
-Failure: a retryable error is retried on the same provider with exponential
-backoff, honouring Retry-After when the wait is short. Anything else moves to
-the next provider. A provider that authenticates badly or rate-limits is put on
-cooldown so the next task does not walk into the same wall. Cooldown state is
-shared by every worker thread, hence the lock.
-"""
+"""Picks the provider for a task, retries what is worth retrying, falls back on the rest."""
 
 from __future__ import annotations
 

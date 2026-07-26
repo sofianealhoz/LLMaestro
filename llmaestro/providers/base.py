@@ -1,9 +1,4 @@
-"""What every provider client has in common.
-
-The interesting part is `raise_for_status`: it is the single place where an HTTP
-answer becomes one of the errors the router knows how to act on. Adding a
-provider therefore never means teaching the router anything new.
-"""
+"""Shared provider behaviour. raise_for_status is the only place an HTTP status becomes a routable error."""
 
 from __future__ import annotations
 

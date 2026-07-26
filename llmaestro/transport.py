@@ -1,10 +1,4 @@
-"""HTTP plumbing, on the standard library only.
-
-This layer knows nothing about any provider. Network-level failures become
-errors from the taxonomy right away, because their meaning is the same
-everywhere; HTTP responses are handed back untouched, 4xx and 5xx included,
-because only the provider layer knows what a given status means for it.
-"""
+"""HTTP on urllib. Network failures raise, HTTP answers come back as they are: 4xx and 5xx mean different things per provider."""
 
 from __future__ import annotations
 

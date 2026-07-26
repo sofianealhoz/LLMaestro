@@ -1,9 +1,4 @@
-"""Cloud providers that expose the OpenAI chat completion shape.
-
-Cerebras, Groq and OpenRouter differ only by base URL, model name and quota, so
-they share one client. Everything provider-specific already lives in
-providers.toml.
-"""
+"""Cerebras, Groq and OpenRouter: same /chat/completions shape, one client."""
 
 from __future__ import annotations
 

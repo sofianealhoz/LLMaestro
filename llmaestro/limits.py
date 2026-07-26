@@ -1,16 +1,7 @@
-"""Quota ledger: what each provider has spent, and what it is still allowed.
+"""Quota ledger, in sqlite: what each provider has spent, and what it is still allowed.
 
-Free tiers are capped per minute and per day, on requests and on tokens. The
-router asks the ledger *before* dispatching instead of discovering the ceiling
-through a refusal, which is the difference between a smooth fallback and a
-burst of 429s.
-
-Declared limits come from providers.toml and are only a starting point: when a
-provider refuses anyway, the observed usage at that moment becomes the learned
-limit, so a wrong value in the catalogue self-corrects after one refusal.
-
-State lives in sqlite under ~/.llmaestro so the ledger survives restarts, and
-every access is serialised: a single ledger is shared by all worker threads.
+Limits come from three places, best first: what the provider states in its rate
+limit headers, what a refusal proves, what providers.toml declares.
 """
 
 from __future__ import annotations
@@ -88,7 +79,7 @@ class Ledger:
                 )
 
     def declare(self, spec: ProviderSpec, limits: dict) -> None:
-        """Record what the provider says about itself. Beats any guess."""
+        """Record the limits the provider states in its own headers."""
         if not limits:
             return
         with self._lock:

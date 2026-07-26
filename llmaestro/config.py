@@ -1,9 +1,7 @@
-"""Provider catalogue and credential resolution.
+"""Reads providers.toml and resolves keys from the environment.
 
-The catalogue lives in providers.toml so the fallback order, the models and the
-known quotas can change without touching code. Keys live in the environment and
-never in the repository. A provider whose key is missing is not an error: it is
-skipped, and the reason is reported so `--check` can tell you what to fix.
+A provider without its key is skipped with a reason, not an error: one
+configured provider is enough to run.
 """
 
 from __future__ import annotations
@@ -49,11 +47,7 @@ class ProviderSpec:
 
 
 def load_env(path: str | os.PathLike = ".env", environ: dict | None = None) -> dict:
-    """Read a .env file into the environment without overriding what is set.
-
-    An exported variable always wins over the file, which is what you want when
-    you run a one-off command with a different key.
-    """
+    """Load .env without overriding the environment: an exported key wins."""
     environ = os.environ if environ is None else environ
     source = Path(path)
     if not source.is_file():

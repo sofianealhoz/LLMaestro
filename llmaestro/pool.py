@@ -1,14 +1,7 @@
-"""Worker pool: many leaf calls at once, one router underneath.
+"""Worker pool: a queue drained by N threads, all sharing one router.
 
-This is what makes the whole design pay off. Offloading small tasks to cheap
-providers is only worth it in volume, and volume means concurrency. The pool is
-a queue filled by the producer and drained by N threads, all sharing a single
-Router so that cooldowns and quota learned by one worker apply immediately to
-the others.
-
-Threads rather than asyncio: the work is pure network waiting, the standard
-library covers it, and a shared Router under a lock is easier to reason about
-than an event loop.
+Threads and not asyncio: the work is network waiting, and a shared router under
+a lock keeps cooldowns visible to every worker at once.
 """
 
 from __future__ import annotations
@@ -44,11 +37,7 @@ class WorkerPool:
         self.workers = max(1, int(workers))
 
     def run(self, tasks) -> list[Result]:
-        """Run every task and return the results in input order.
-
-        A task that fails yields a Result carrying its error: one bad task never
-        takes the batch down with it.
-        """
+        """Every task, results in input order. A failed task carries its error instead of killing the batch."""
         tasks = list(tasks)
         if not tasks:
             return []

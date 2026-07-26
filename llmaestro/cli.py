@@ -4,11 +4,7 @@
     python3 -m llmaestro --check
     python3 -m llmaestro --batch prompts.txt --workers 4 --policy latency
     python3 -m llmaestro --image screenshot.png "what does this say?"
-
---check is the diagnostic to reach for first: it says which providers the
-catalogue declares, which ones have their key, which are unreachable and how
-much quota is left. --dry-run runs the whole path through a local fake provider,
-so everything is exercisable with no key and no network.
+    python3 -m llmaestro watch --limit 40
 """
 
 from __future__ import annotations

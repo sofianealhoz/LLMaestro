@@ -1,8 +1,4 @@
-"""A provider that answers without a network, for --dry-run and for tests.
-
-It exists so the whole path (router, ledger filtering, worker pool, CLI output)
-can be exercised on a machine with no keys and no connectivity.
-"""
+"""Answers without a network, for --dry-run and tests."""
 
 from __future__ import annotations
 

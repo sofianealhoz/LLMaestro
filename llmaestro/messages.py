@@ -1,10 +1,4 @@
-"""The unit of work: a conversation, which may carry images.
-
-Providers disagree on the wire format for multimodal input (OpenAI uses content
-blocks with data URIs, Ollama a plain base64 array), so messages stay neutral
-here and each client serialises them. Anything that has to travel to a model
-goes through this module.
-"""
+"""A conversation, possibly with images. Kept neutral: each client serialises its own wire format."""
 
 from __future__ import annotations
 
@@ -41,12 +35,7 @@ def needs_vision(messages: list[Message]) -> bool:
 
 
 def estimate_tokens(messages: list[Message]) -> int:
-    """Rough size of a conversation, used to rule out providers too small for it.
-
-    Deliberately approximate: it only has to be good enough to avoid sending a
-    prompt that a provider will refuse, and every provider is generous about the
-    margin.
-    """
+    """Rough size, only accurate enough to rule out providers whose window is too small."""
     characters = sum(len(m.text) for m in messages)
     images = sum(len(m.images) for m in messages)
     return characters // CHARS_PER_TOKEN + images * TOKENS_PER_IMAGE
