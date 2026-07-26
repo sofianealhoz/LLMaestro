@@ -1,0 +1,31 @@
+# Réglages des agents. Copier en agent.toml pour les changer: agent.toml est gitignoré.
+
+[agent]
+# Délai maximal d'une commande, en secondes.
+timeout = 120.0
+
+# Liste blanche stricte. Une commande n'est lancée que si elle commence exactement
+# par une de ces suites. Jamais passée à un shell, donc pas d'injection possible.
+# git push, rm, mv et tout le reste sont absents, donc interdits.
+commands = [
+    ["python3", "-m", "unittest"],
+    ["python3", "-m", "pytest"],
+    ["python3", "-m", "compileall"],
+    ["node", "--check"],
+    ["npm", "test"],
+    ["git", "status"],
+    ["git", "diff"],
+    ["git", "log"],
+    ["ls"],
+    ["cat"],
+    ["grep"],
+    ["wc"],
+]
+
+# Plafonds. Le dépassement arrête proprement le run, il ne lève pas d'erreur.
+[agent.budget]
+steps = 24
+tokens = 120000
+files = 40
+bytes = 400000
+seconds = 900.0

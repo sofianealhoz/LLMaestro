@@ -1,7 +1,9 @@
 """Quota ledger, in sqlite: what each provider has spent, and what it is still allowed.
 
-Limits come from three places, best first: what the provider states in its rate
-limit headers, what a refusal proves, what providers.toml declares.
+Une limite vient de deux endroits seulement: ce que le fournisseur annonce dans ses en-têtes,
+et à défaut ce que déclare providers.toml. Déduire une limite d'un refus a été essayé et retiré:
+avec plusieurs workers, le compteur au moment du 429 n'est pas la limite, et le registre
+apprenait des plafonds absurdes qui bloquaient tout ensuite.
 """
 
 from __future__ import annotations
@@ -108,26 +110,6 @@ class Ledger:
             for kind, value in limits.items():
                 if kind in WINDOWS and value:
                     self._remember(spec, kind, value)
-
-    def learn_from_refusal(self, spec: ProviderSpec) -> dict:
-        """Turn a 429 into knowledge: what we just spent is the real ceiling."""
-        learned = {}
-        with self._lock:
-            for kind, window in WINDOWS.items():
-                # Only refine a limit the catalogue actually declares. Without a
-                # declared value there is nothing tying the refusal to this
-                # window, and guessing one taught a daily cap of 1.
-                if getattr(spec, kind, None) is None:
-                    continue
-                observed = self._used(spec, window, counting_tokens=kind in TOKEN_KINDS)
-                if observed <= 0:
-                    continue
-                current = self._effective(spec, kind)
-                if current is not None and current <= observed:
-                    continue
-                self._remember(spec, kind, observed)
-                learned[kind] = observed
-        return learned
 
     def forget_learned(self, spec: ProviderSpec | None = None) -> int:
         """Drop learned limits. Needed when a bad run taught nonsense."""

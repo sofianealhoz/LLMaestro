@@ -2,13 +2,14 @@
 
 from __future__ import annotations
 
+import json
 import random
 import threading
 import time
 from dataclasses import dataclass
 
 from .errors import AllProvidersFailed, ContextTooLarge, ProviderError, RateLimited
-from .messages import Message, estimate_tokens, needs_vision, user
+from .messages import CHARS_PER_TOKEN, Message, estimate_tokens, needs_vision, user
 
 DEFAULT_COOLDOWN = 30.0
 FAILURES_BEFORE_COOLDOWN = 2
@@ -149,7 +150,9 @@ class Router:
             ]
             if not hints:
                 return [], rejected
-            pause = min(min(hints) + 0.5, self.patience - spent)
+            # Plancher d'une seconde: sans lui, un indice à zéro fait tourner la
+            # boucle des centaines de fois pour rien.
+            pause = min(max(min(hints), 1.0), self.patience - spent)
             if pause <= 0:
                 break
             self._sleep(pause)
@@ -212,7 +215,9 @@ class Router:
 
     @staticmethod
     def _estimate(task: Task) -> int:
-        return estimate_tokens(task.messages) + task.max_tokens
+        # Les schémas d'outils partent à chaque tour et pèsent autant que le prompt.
+        schemas = len(json.dumps(list(task.tools))) // CHARS_PER_TOKEN if task.tools else 0
+        return estimate_tokens(task.messages) + schemas + task.max_tokens
 
     @staticmethod
     def _skip(provider, reason: str) -> Attempt:
@@ -235,8 +240,6 @@ class Router:
 
         cooldown = float(getattr(error, "disable_for", 0.0) or 0.0)
         if isinstance(error, RateLimited):
-            if self.ledger is not None:
-                self.ledger.learn_from_refusal(provider.spec)
             cooldown = max(cooldown, error.retry_after or DEFAULT_COOLDOWN)
 
         with self._lock:

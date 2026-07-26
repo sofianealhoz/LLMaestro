@@ -133,6 +133,17 @@ class Eligibility(unittest.TestCase):
         self.assertEqual("right", completion.text)
         self.assertEqual(0, plain.calls)
 
+    def test_tool_schemas_count_towards_the_context_window(self):
+        # Sans ça, un provider à petite fenêtre est choisi puis refuse la requête.
+        schema = {"name": "read_file", "description": "x" * 4000, "parameters": {}}
+        small = Scripted("small", ["wrong"], context_window=600, tools=True, cost=1)
+        big = Scripted("big", ["right"], context_window=100000, tools=True, cost=9)
+
+        completion = router([small, big]).complete(prompt(tools=(schema,), max_tokens=16))
+
+        self.assertEqual("right", completion.text)
+        self.assertEqual(0, small.calls)
+
     def test_a_prompt_larger_than_the_context_window_skips_the_provider(self):
         small = Scripted("small", ["wrong"], context_window=100, cost=1)
         big = Scripted("big", ["right"], context_window=100000, cost=9)

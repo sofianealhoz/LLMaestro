@@ -83,41 +83,11 @@ class Learning(unittest.TestCase):
         self.assertEqual(5, self.ledger.snapshot(provider)["rpm"]["limit"])
         self.assertEqual(30000, self.ledger.snapshot(provider)["tpm"]["limit"])
 
-    def test_a_window_the_catalogue_ignores_is_never_learned(self):
-        provider = spec("cerebras", rpm=1000)  # no rpd declared
-        self.ledger.record(provider)
 
-        learned = self.ledger.learn_from_refusal(provider)
-
-        self.assertEqual(["rpm"], list(learned))
-        self.assertIsNone(self.ledger.snapshot(provider)["rpd"]["limit"])
-
-    def test_a_refusal_tightens_an_optimistic_catalogue(self):
+    def test_declared_limits_can_be_dropped(self):
         provider = spec("cerebras", rpm=1000)
-        for _ in range(3):
-            self.ledger.record(provider)
-
-        learned = self.ledger.learn_from_refusal(provider)
-
-        self.assertEqual(3, learned["rpm"])
-        allowed, why = self.ledger.allows(provider)
-        self.assertFalse(allowed, "the learned ceiling now applies")
-        self.assertIn("3", why)
-
-    def test_learning_never_loosens_a_declared_limit(self):
-        provider = spec("cerebras", rpm=2)
-        for _ in range(5):
-            self.ledger.record(provider)
-
-        self.ledger.learn_from_refusal(provider)
-
-        self.assertEqual(2, self.ledger.snapshot(provider)["rpm"]["limit"])
-
-    def test_learned_limits_can_be_dropped(self):
-        provider = spec("cerebras", rpm=1000)
-        self.ledger.record(provider)
-        self.ledger.learn_from_refusal(provider)
-        self.assertEqual(1, self.ledger.snapshot(provider)["rpm"]["limit"])
+        self.ledger.declare(provider, {"rpm": 5})
+        self.assertEqual(5, self.ledger.snapshot(provider)["rpm"]["limit"])
 
         self.assertEqual(1, self.ledger.forget_learned())
 

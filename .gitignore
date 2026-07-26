@@ -25,8 +25,9 @@ out/
 *.log
 .DS_Store
 
-# Personal watch settings, the example stays versioned
+# Personal settings, the examples stay versioned
 watch.toml
+agent.toml
 
 # Local notes, never published
 NOTES-LOCAL.md

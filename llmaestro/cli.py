@@ -12,6 +12,7 @@ from __future__ import annotations
 import argparse
 import json
 import sys
+from pathlib import Path
 
 from .config import POLICIES, DEFAULT_CATALOGUE, load_catalogue, load_env
 from .errors import AllProvidersFailed
@@ -26,6 +27,8 @@ def main(argv=None) -> int:
     argv = list(sys.argv[1:] if argv is None else argv)
     if argv and argv[0] == "watch":
         return _watch(argv[1:])
+    if argv and argv[0] in ("run", "runs", "inspect", "promote"):
+        return _agent(argv[0], argv[1:])
 
     args = _parse(argv)
     load_env(args.env)
@@ -193,6 +196,101 @@ def _watch(argv) -> int:
     else:
         print(report.markdown)
     return 0
+
+
+def _agent(command: str, argv) -> int:
+    from . import agent as agent_module
+
+    args = _parse_agent(command, argv)
+    load_env(args.env)
+
+    if command == "runs":
+        for run in agent_module.runs():
+            flag = "promoted" if run.promoted else run.stopped or "?"
+            print(f"{run.id}  {flag:<16} {Path(run.repo).name:<24} {run.instruction[:60]}")
+        return 0
+
+    if command == "inspect":
+        try:
+            run = agent_module.load_run(args.run_id)
+        except agent_module.Refused as error:
+            print(str(error), file=sys.stderr)
+            return 2
+        print(f"run {run.id} on {run.repo}")
+        print(f"branch {run.branch}, stopped: {run.stopped or '?'}")
+        print(f"steps {run.steps}, tokens {run.tokens}, providers {', '.join(run.providers)}")
+        if run.summary:
+            print(f"\n{run.summary}\n")
+        if args.journal:
+            for record in agent_module.Journal(run.journal, run.id).read():
+                print(f"  {record['event']:<18} {json.dumps(record['data'], ensure_ascii=False)[:150]}")
+        else:
+            print(agent_module.diff(run) or "(aucune modification)")
+        return 0
+
+    if command == "promote":
+        try:
+            run = agent_module.load_run(args.run_id)
+            head = agent_module.promote(run)
+        except agent_module.Refused as error:
+            print(str(error), file=sys.stderr)
+            return 2
+        print(f"appliqué sur {run.repo}: {head}")
+        print("le push reste manuel")
+        return 0
+
+    try:
+        specs, _ = load_catalogue(args.config)
+    except (OSError, ValueError) as error:
+        print(f"config error: {error}", file=sys.stderr)
+        return 2
+    if not specs:
+        print("aucun provider configuré", file=sys.stderr)
+        return 2
+
+    ledger = Ledger()
+    router = Router(build_all(specs), ledger=ledger, retries=args.retries, patience=args.patience)
+    try:
+        run = agent_module.start(
+            router,
+            args.repo,
+            args.instruction,
+            config=agent_module.load_config(args.agent_config),
+        )
+    except agent_module.Refused as error:
+        print(str(error), file=sys.stderr)
+        return 2
+    finally:
+        ledger.close()
+
+    print(f"run {run.id}: {run.stopped}")
+    if run.summary:
+        print(run.summary)
+    print(
+        f"\nrelire: python3 -m llmaestro inspect {run.id}"
+        f"\nappliquer: python3 -m llmaestro promote {run.id}",
+        file=sys.stderr,
+    )
+    return 0 if run.stopped == "finished" else 1
+
+
+def _parse_agent(command: str, argv):
+    parser = argparse.ArgumentParser(prog=f"llmaestro {command}")
+    if command == "run":
+        parser.add_argument("instruction", help="ce que l'agent doit faire")
+        parser.add_argument("--repo", required=True, help="dépôt git cible, propre")
+        parser.add_argument("--agent-config", help="par défaut agent.toml puis agent.example.toml")
+        parser.add_argument("--retries", type=int, default=1)
+        parser.add_argument("--patience", type=float, default=600.0)
+        parser.add_argument("--config", default=DEFAULT_CATALOGUE)
+    elif command in ("inspect", "promote"):
+        parser.add_argument("run_id")
+        if command == "inspect":
+            parser.add_argument(
+                "--journal", action="store_true", help="le journal au lieu du diff"
+            )
+    parser.add_argument("--env", default=".env")
+    return parser.parse_args(argv)
 
 
 def _check(providers, skipped, ledger, args) -> int:
