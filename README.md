@@ -1,39 +1,34 @@
 # LLMaestro
 
-**Orchestration of multi-LLM AI agents, cloud and local.**
+**Orchestration d'agents IA multi-LLM, cloud et local.**
 
-LLMaestro is a software orchestration layer that routes each task to the most
-suitable LLM provider (cloud API or on-device model) according to **cost,
-latency, and quality**, with **automatic fallback** on failure or rate-limit,
-**tool-use** execution, **MCP** connectors, and **local inference**. A single
-high-quality orchestrator stays in charge; self-contained sub-tasks are
-dispatched to whichever provider can do them cheapest and fastest.
+Couche d'orchestration qui envoie chaque tâche au fournisseur le plus adapté, API cloud ou
+modèle local, selon coût, latence et qualité. Bascule automatique sur panne ou quota atteint,
+exécution d'outils, connecteurs MCP, inférence locale. Un orchestrateur capable garde le
+raisonnement, les sous-tâches autonomes partent chez le moins cher.
 
-> **Status: work in progress.** The routing core is implemented and tested:
-> provider selection, retries, fallback, cooldowns, quota accounting and the
-> worker pool. Agent loops, RAG and the OpenAI-compatible endpoint are next.
->
+> **En cours.** Noyau de routage implémenté et testé : sélection, réessais, bascule, mises au
+> repos, comptage des quotas, pool de workers, appels d'outils. Veille opérationnelle. Restent
+> les agents confinés, le point d'entrée compatible OpenAI et le RAG.
 
 ---
 
-## Why
+## Pourquoi
 
-Running a *full* agent against free/low-cost APIs does not scale: a complete
-agent sends **32–42k tokens per request** (base system prompt + tool schemas
-are largely incompressible), which immediately hits per-minute token limits or
-shared-pool rate-limits on free tiers. The same providers answer a **direct,
-single-purpose call** with a short prompt in **~0.15s**, comfortably under those
-limits.
+Un agent complet ne tient pas sur des API gratuites. Il envoie 32 à 42k tokens par requête,
+prompt système et schémas d'outils compris, largement incompressibles. Résultat : plafond de
+tokens par minute atteint immédiatement. Les mêmes fournisseurs répondent en 0,15 s à un appel
+direct et court.
 
-LLMaestro is built on that finding:
+D'où le principe :
 
-- Keep a **capable orchestrator** in charge of planning and hard reasoning.
-- **Offload leaf tasks** (reformat, translate, classify, summarize) as
-  *targeted direct calls* to the cheapest provider that can do the job.
-- **Fall back automatically** when a provider errors, rate-limits, or caps the
-  context: try the next one in the chain instead of failing.
+- garder un orchestrateur capable sur la planification et le raisonnement dur ;
+- déporter les tâches feuilles, reformater, traduire, classer, résumer, en appels directs chez
+  le moins cher qui sache les faire ;
+- basculer automatiquement sur erreur, refus pour quota ou contexte trop grand, au lieu
+  d'échouer.
 
-This keeps quality where it matters while staying within free/low-cost budgets.
+Qualité là où elle compte, budget gratuit ailleurs.
 
 ---
 
@@ -41,152 +36,143 @@ This keeps quality where it matters while staying within free/low-cost budgets.
 
 ```mermaid
 flowchart TD
-    task["task in"] --> orch["Orchestrator, planning and tiered routing"]
-    orch --> pool["Worker pool, queue drained by N threads"]
-    pool --> router["Router, selection by cost/latency/quality<br/>fallback on error, 429, context cap"]
-    router --> ledger[("Quota ledger<br/>sqlite")]
+    task["tâche"] --> orch["Orchestrateur, planification et routage par niveau"]
+    orch --> pool["Pool de workers, file consommée par N threads"]
+    pool --> router["Routeur, choix par coût/latence/qualité<br/>bascule sur erreur, 429, contexte trop grand"]
+    router --> ledger[("Registre de quotas<br/>sqlite")]
     router --> cerebras["Cerebras, cloud"]
     router --> groq["Groq, cloud"]
     router --> openrouter["OpenRouter, cloud"]
-    router --> ollama["Ollama, local and vision"]
+    router --> ollama["Ollama, local et vision"]
 ```
 
-Cross-cutting: tool-use connectors, MCP servers, output evaluation.
-
-The orchestrator decides *what* needs to happen; the router decides *where* it
-runs. Cloud providers are reached over their HTTP APIs behind a unified
-interface; local models run on-device via Ollama for sovereign, offline
-inference. Connectors and MCP servers give agents the ability to take real
-actions (search, browse, read external data).
+L'orchestrateur décide quoi faire, le routeur décide où. Providers cloud derrière une interface
+unique, modèles locaux via Ollama. Connecteurs et serveurs MCP pour les actions réelles.
 
 ---
 
-## Components
+## Composants
 
-| Layer | What it does | Status |
+| Couche | Rôle | État |
 |---|---|---|
-| **Router** | selects a provider by cost/latency/quality/reliability, retries what is worth retrying, falls back on the rest, and puts failing providers on cooldown | implemented |
-| **Quota ledger** | tracks requests and tokens per minute and per day for each provider, and tightens its own limits when a provider answers 429 | implemented |
-| **Worker pool** | a queue drained by N threads sharing one router, so cooldowns and quota learned by one worker apply at once to the others | implemented |
-| **Cloud providers** | Cerebras, Groq, OpenRouter behind a unified interface | implemented |
-| **Local inference** | Ollama (open-weights, on-device, sovereign), including vision models | implemented |
-| **Tech watch** | collects new repositories, posts and releases, scores each one through the pool, writes a ranked digest | implemented: see [`docs/WATCH.md`](docs/WATCH.md) |
-| **Tool-use connectors** | self-contained tools an agent can call (e.g. Reddit search) | implemented, first connector: see [`connectors/`](connectors/) |
-| **MCP integrations** | Model Context Protocol servers (browser automation, external data) | documented: see [`docs/MCP-INTEGRATIONS.md`](docs/MCP-INTEGRATIONS.md) |
-| **Output evaluation** | scoring / QA pass on model outputs | planned |
-| **Vision / computer-use** | agent "sees" the screen and acts on it | planned |
+| **Routeur** | choix par coût, latence, qualité ou fiabilité, réessai de ce qui vaut la peine, bascule sur le reste, mise au repos des fournisseurs qui cassent | fait |
+| **Registre de quotas** | requêtes et tokens par minute et par jour, lus dans les en-têtes `x-ratelimit-*` du fournisseur, resserrés après un refus | fait |
+| **Pool de workers** | file consommée par N threads partageant un seul routeur, donc mises au repos et quotas visibles de tous | fait |
+| **Providers cloud** | Cerebras, Groq, OpenRouter derrière une interface unique | fait |
+| **Inférence locale** | Ollama, poids ouverts, hors ligne, modèles de vision compris | fait |
+| **Appels d'outils** | schémas envoyés, appels relus, résultats renvoyés au modèle | fait |
+| **Veille** | collecte dépôts, posts et versions, note chaque item via le pool, écrit un digest classé | fait, voir [`docs/WATCH.md`](docs/WATCH.md) |
+| **Connecteurs** | outils autonomes appelables, recherche Reddit sans clé | fait, voir [`connectors/`](connectors/) |
+| **Intégrations MCP** | serveurs Model Context Protocol | documenté, voir [`docs/MCP-INTEGRATIONS.md`](docs/MCP-INTEGRATIONS.md) |
+| **Agents confinés** | boucle bornée sur un worktree jetable, sans verbe destructeur | prévu |
+| **Évaluation des sorties** | passe de notation et de contrôle | prévu |
 
 ---
 
-## Repository layout
+## Arborescence
 
 ```
-llmaestro/       the package: router, quota ledger, worker pool, provider clients
-  providers/     one client per wire protocol (OpenAI-compatible, Ollama)
-  watch/         the tech watch job: collectors, dedup, scoring, digest
-tests/           offline test suite, no key and no network required
-connectors/      tool-use connectors (self-contained, callable by the orchestrator)
-docs/            architecture deep-dives and integration notes
-providers.toml   provider catalogue: models, capabilities, ranks, known quotas
-.env.example     the keys to fill in, copy to .env
-watch.example.toml  watch sources and scoring axes, copy to watch.toml
-pyproject.toml   packaging, no runtime dependencies
-README.md        this file
-LICENSE          MIT
+llmaestro/       le paquet : routeur, registre de quotas, pool, clients providers
+  providers/     un client par protocole, compatible OpenAI et Ollama
+  watch/         la veille : collecteurs, dédoublonnage, notation, digest
+tests/           suite hors ligne, ni clé ni réseau
+connectors/      connecteurs autonomes appelables par l'orchestrateur
+docs/            notes d'architecture et d'intégration
+providers.toml   catalogue : modèles, capacités, rangs, quotas connus
+.env.example     les clés à remplir, à copier en .env
+watch.example.toml  sources et axes de notation, à copier en watch.toml
+pyproject.toml   empaquetage, aucune dépendance
 ```
 
 ---
 
-## Install
+## Installation
 
-No dependencies to install. Python 3.11 or newer is the only requirement.
+Rien à installer. Python 3.11 ou plus récent suffit.
 
 ```bash
 git clone https://github.com/sofianealhoz/LLMaestro.git
 cd LLMaestro
-cp .env.example .env    # then fill in at least one key
+cp .env.example .env    # puis remplir au moins une clé
 python3 -m llmaestro --check
 ```
 
-Installing the package (`pip install -e .`) only adds the `llmaestro` command as a
-shortcut for `python3 -m llmaestro`.
+`pip install -e .` ajoute seulement la commande `llmaestro` comme raccourci.
 
 ---
 
 ## Configuration
 
-Two files, and no secret in the repository.
+Deux fichiers, aucun secret dans le dépôt.
 
-**`.env`** holds the keys and is gitignored. Any provider whose key is missing is
-skipped silently, so a single configured provider is enough to run. An exported
-environment variable always wins over the file.
+`.env` porte les clés, ignoré par git. Un provider sans sa clé est écarté en silence, un seul
+suffit à faire tourner la chaîne. Une variable exportée l'emporte sur le fichier.
 
-**`providers.toml`** is the catalogue: for each provider its base URL, model,
-context window, capabilities (`vision`, `tools`), the cost, latency and quality
-ranks the router sorts on, and its known free-tier quotas. Changing the fallback
-order means editing this file, not the code.
+`providers.toml` est le catalogue : URL, modèle, fenêtre de contexte, capacités `vision` et
+`tools`, rangs de coût, latence et qualité, quotas connus. Changer l'ordre de bascule se fait
+ici, pas dans le code.
 
-Declared quotas are a starting point. When a provider refuses with 429, the
-ledger records the usage observed at that moment as the real ceiling, so a wrong
-value in the catalogue corrects itself after one refusal. State lives in
+Les quotas déclarés ne sont qu'un point de départ. Les fournisseurs annoncent leurs vraies
+limites dans leurs en-têtes, le registre les relit à chaque appel réussi. État dans
 `~/.llmaestro/state.db`.
 
-`python3 -m llmaestro --check` reports what is configured, what is missing, what
-is unreachable and how much quota is left:
+`python3 -m llmaestro --check` dit ce qui est configuré, ce qui manque, ce qui est injoignable,
+quel modèle n'existe pas et combien de quota reste :
 
 ```
 catalogue: providers.toml
-  groq             ready        llama-3.1-8b-instant    ctx 131072  cost 2 latency 1 quality 3
-      rpm: 4/30
+  cerebras         ready        gpt-oss-120b            ctx 8192    cost 2 latency 1 quality 3
+      rpm: 1/5
+      tpm: 108/30000
   ollama           unreachable  qwen2.5-coder:7b        ctx 32768   cost 1 latency 4 quality 4
-  cerebras         skipped      CEREBRAS_API_KEY is not set
+  openrouter       skipped      OPENROUTER_API_KEY is not set
 ```
 
 ---
 
 ## Usage
 
-From the command line:
+En ligne de commande :
 
 ```bash
-# one call, cheapest provider that can do it
-python3 -m llmaestro "summarise in one sentence: ..."
+# un appel, chez le moins cher qui sache le faire
+python3 -m llmaestro "résume en une phrase : ..."
 
-# many calls at once through the worker pool
+# beaucoup d'appels d'un coup, par le pool
 python3 -m llmaestro --batch prompts.txt --workers 4
 
-# rank providers differently
-python3 -m llmaestro --policy latency "classify as bug or feature: ..."
+# classer les fournisseurs autrement
+python3 -m llmaestro --policy latency "classe en bug ou évolution : ..."
 
-# an image, routed to a vision-capable provider
-python3 -m llmaestro --image screenshot.png "what does this say?"
+# une image, routée vers un modèle de vision
+python3 -m llmaestro --image capture.png "que dit cette capture ?"
 
-# the whole path with a local fake provider: no key, no network
-python3 -m llmaestro --dry-run "hello"
+# tout le chemin avec un faux provider local, ni clé ni réseau
+python3 -m llmaestro --dry-run "bonjour"
 
-# the tech watch: collect, score, write a ranked digest
+# la veille : collecte, notation, digest classé
 python3 -m llmaestro watch --limit 40
 ```
 
-From Python:
+Depuis Python :
 
 ```python
 from llmaestro import Router, Task, WorkerPool, build_all, load_catalogue, load_env
 
 load_env()
-specs, skipped = load_catalogue()
+specs, ecartes = load_catalogue()
 router = Router(build_all(specs))
 
-print(router.complete(Task.from_prompt("translate to French: hello")).text)
+print(router.complete(Task.from_prompt("traduis en anglais : bonjour")).text)
 
-# hundreds of leaf tasks, four at a time, sharing one router
-tasks = [Task.from_prompt(f"classify: {item}") for item in items]
-for result in WorkerPool(router, workers=4).run(tasks):
-    print(result.text if result.ok else result.error)
+# des centaines de tâches feuilles, quatre à la fois, un seul routeur
+taches = [Task.from_prompt(f"classe : {item}") for item in items]
+for resultat in WorkerPool(router, workers=4).run(taches):
+    print(resultat.text if resultat.ok else resultat.error)
 ```
 
-When every provider is exhausted the router raises `AllProvidersFailed`, whose
-`attempts` list says what was tried, what was skipped and why.
+Quand tous les fournisseurs sont épuisés, le routeur lève `AllProvidersFailed`. Sa liste
+`attempts` dit ce qui a été tenté, ce qui a été écarté et pourquoi.
 
 ---
 
@@ -196,46 +182,48 @@ When every provider is exhausted the router raises `AllProvidersFailed`, whose
 python3 -m unittest discover -s tests
 ```
 
-The suite needs no key and no network: providers are scripted fakes, the clock is
-injected, and the ledger runs in memory.
+Ni clé ni réseau : providers scriptés, horloge injectée, registre en mémoire.
 
 ---
 
-## Providers
+## Fournisseurs
 
-| Provider | Type | Role in the chain |
+| Fournisseur | Type | Rôle dans la chaîne |
 |---|---|---|
-| Cerebras | cloud (free tier) | primary for leaf tasks: fast, generous daily quota (context-capped) |
-| Groq | cloud (free tier) | high-volume fallback, very fast small models |
-| OpenRouter | cloud (free tier) | secondary fallback, multi-model, single key |
-| Ollama | local | sovereign / offline inference (planned) |
+| Cerebras | cloud, gratuit | tâches feuilles, très rapide, contexte plafonné |
+| Groq | cloud, gratuit | volume, petits modèles très rapides |
+| OpenRouter | cloud, gratuit | second recours, multi-modèles, une seule clé |
+| Ollama | local | souverain, hors ligne, vision |
 
-Credentials are read from the local environment and never committed.
-
----
-
-## Roadmap
-
-- [x] Router with cost-tiered provider selection + fallback (Cerebras → Groq → OpenRouter)
-- [x] Quota ledger with limits learned from refusals
-- [x] Worker pool for concurrent leaf tasks
-- [x] Local inference backend (Ollama, e.g. Qwen2.5-Coder)
-- [ ] OpenAI-compatible endpoint, so any existing client can route through LLMaestro
-- [ ] Output evaluation pass
-- [ ] Vision / computer-use support
+Les identifiants sont lus dans l'environnement, jamais commités.
 
 ---
 
-## Stack
+## Feuille de route
 
-- **Python, standard library only**: orchestrator, router, quota ledger and
-  provider clients. No runtime dependency, so the package runs on any Python
-  3.11 or newer with nothing installed (`urllib` for HTTP, `tomllib` for
-  configuration, `sqlite3` for the ledger, `threading` for the pool).
-- **Node.js**: existing standalone connectors (e.g. Reddit search).
-- **MCP** (Model Context Protocol) for rich tool integrations; **TOML** for
-  configuration.
+- [x] Routeur avec sélection par coût et bascule, Cerebras puis Groq puis OpenRouter
+- [x] Registre de quotas lu dans les en-têtes des fournisseurs
+- [x] Pool de workers pour les tâches feuilles concurrentes
+- [x] Inférence locale, Ollama
+- [x] Appels d'outils
+- [x] Veille technique
+- [ ] Agents confinés dans un worktree jetable
+- [ ] Point d'entrée compatible OpenAI, pour brancher n'importe quel client existant
+- [ ] Évaluation des sorties
+- [ ] Vision et pilotage d'écran
 
-## License
+---
 
-MIT, see [LICENSE](LICENSE).
+## Pile
+
+- **Python, bibliothèque standard seule** : orchestrateur, routeur, registre, clients. Aucune
+  dépendance, donc rien à installer. `urllib` pour HTTP, `tomllib` pour la configuration,
+  `sqlite3` pour le registre, `threading` pour le pool.
+- **Node.js** : connecteurs autonomes existants, recherche Reddit.
+- **MCP** pour les intégrations riches, **TOML** pour la configuration.
+
+Le code, les commentaires et l'historique de commits sont en anglais.
+
+## Licence
+
+MIT, voir [LICENSE](LICENSE).
