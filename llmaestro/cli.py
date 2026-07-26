@@ -27,6 +27,10 @@ from .router import Router, Task
 
 
 def main(argv=None) -> int:
+    argv = list(sys.argv[1:] if argv is None else argv)
+    if argv and argv[0] == "watch":
+        return _watch(argv[1:])
+
     args = _parse(argv)
     load_env(args.env)
 
@@ -144,6 +148,55 @@ def _batch(router: Router, prompts: list[str], args, options) -> int:
     return 1 if failures else 0
 
 
+def _watch(argv) -> int:
+    from . import watch as watch_module
+
+    args = _parse_watch(argv)
+    load_env(args.env)
+
+    router, ledger = None, None
+    if not args.no_score:
+        try:
+            specs, _ = load_catalogue(args.config)
+        except (OSError, ValueError) as error:
+            print(f"config error: {error}", file=sys.stderr)
+            return 2
+        if not specs:
+            print("no provider configured: run with --no-score to collect only", file=sys.stderr)
+            return 2
+        ledger = Ledger()
+        router = Router(build_all(specs), ledger=ledger, retries=args.retries)
+
+    try:
+        config = watch_module.load_config(args.watch_config)
+        report = watch_module.run(
+            router,
+            config=config,
+            workers=args.workers,
+            only=args.source or None,
+            limit=args.limit,
+            write=not args.no_write,
+        )
+    except (OSError, ValueError) as error:
+        print(f"watch error: {error}", file=sys.stderr)
+        return 2
+    finally:
+        if ledger is not None:
+            ledger.close()
+
+    for name, reason in report.problems:
+        print(f"source {name} failed: {reason}", file=sys.stderr)
+    print(
+        f"[collected {report.collected}, new {report.fresh}, scored {report.scored}]",
+        file=sys.stderr,
+    )
+    if report.path:
+        print(report.path)
+    else:
+        print(report.markdown)
+    return 0
+
+
 def _check(providers, skipped, ledger, args) -> int:
     print(f"catalogue: {args.config}")
     if not providers:
@@ -204,6 +257,33 @@ def _report_failure(failure: AllProvidersFailed) -> None:
     for attempt in failure.attempts:
         prefix = "tried" if attempt.tried else "     "
         print(f"  {prefix} {attempt.provider}: {attempt.error}", file=sys.stderr)
+
+
+def _parse_watch(argv):
+    parser = argparse.ArgumentParser(
+        prog="llmaestro watch",
+        description="Collect what is new, score it, write a digest.",
+    )
+    parser.add_argument(
+        "--watch-config", metavar="FILE", help="defaults to watch.toml, then watch.example.toml"
+    )
+    parser.add_argument(
+        "--source",
+        action="append",
+        default=[],
+        metavar="NAME",
+        help="restrict to a source (github, hacker_news, reddit, anthropic)",
+    )
+    parser.add_argument("--limit", type=int, help="score at most this many new items")
+    parser.add_argument("--workers", type=int, default=4)
+    parser.add_argument("--retries", type=int, default=1)
+    parser.add_argument("--no-score", action="store_true", help="collect only, no provider needed")
+    parser.add_argument(
+        "--no-write", action="store_true", help="print the digest instead of writing out/"
+    )
+    parser.add_argument("--config", default=DEFAULT_CATALOGUE, help="provider catalogue")
+    parser.add_argument("--env", default=".env")
+    return parser.parse_args(argv)
 
 
 def _parse(argv):

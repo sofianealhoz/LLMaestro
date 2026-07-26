@@ -57,26 +57,30 @@ try {
   }
   const json = await res.json();
   const data = json.data || [];
-  if (opt.json) { console.log(JSON.stringify(data, null, 2)); process.exit(0); }
-
-  if (!data.length) { console.log(`No result for "${query}"${opt.sub ? " in r/" + opt.sub : ""}.`); process.exit(0); }
-
-  console.log(`# ${data.length} results (${opt.type}) for "${query}"${opt.sub ? " | r/" + opt.sub : ""} | sort:${opt.sort}\n`);
-  for (const d of data) {
-    const score = (d.score ?? 0).toString().padStart(5, " ");
-    const sub = d.subreddit || "?";
-    const date = fmtDate(d.created_utc);
-    if (opt.type === "comment") {
-      const link = `https://reddit.com${d.permalink || ""}`;
-      console.log(`[${score}] r/${sub} | u/${d.author} | ${date}`);
-      console.log(`  ${clip(d.body, 280)}`);
-      console.log(`  ${link}\n`);
-    } else {
-      const link = d.url && !d.url.includes("reddit.com") ? d.url : `https://reddit.com${d.permalink || ""}`;
-      const nc = d.num_comments ?? 0;
-      console.log(`[${score} | ${nc}c] r/${sub} | ${date} | ${clip(d.title, 140)}`);
-      if (d.selftext) console.log(`  ${clip(d.selftext, 260)}`);
-      console.log(`  ${link}\n`);
+  // No process.exit after printing: piped stdout is async, exiting truncates
+  // large output mid-string.
+  if (opt.json) {
+    console.log(JSON.stringify(data, null, 2));
+  } else if (!data.length) {
+    console.log(`No result for "${query}"${opt.sub ? " in r/" + opt.sub : ""}.`);
+  } else {
+    console.log(`# ${data.length} results (${opt.type}) for "${query}"${opt.sub ? " | r/" + opt.sub : ""} | sort:${opt.sort}\n`);
+    for (const d of data) {
+      const score = (d.score ?? 0).toString().padStart(5, " ");
+      const sub = d.subreddit || "?";
+      const date = fmtDate(d.created_utc);
+      if (opt.type === "comment") {
+        const link = `https://reddit.com${d.permalink || ""}`;
+        console.log(`[${score}] r/${sub} | u/${d.author} | ${date}`);
+        console.log(`  ${clip(d.body, 280)}`);
+        console.log(`  ${link}\n`);
+      } else {
+        const link = d.url && !d.url.includes("reddit.com") ? d.url : `https://reddit.com${d.permalink || ""}`;
+        const nc = d.num_comments ?? 0;
+        console.log(`[${score} | ${nc}c] r/${sub} | ${date} | ${clip(d.title, 140)}`);
+        if (d.selftext) console.log(`  ${clip(d.selftext, 260)}`);
+        console.log(`  ${link}\n`);
+      }
     }
   }
 } catch (e) {

@@ -1,0 +1,40 @@
+# Tech watch configuration. Copy to watch.toml to change it without touching
+# the repository: watch.toml is gitignored.
+#
+# Every source below works without an API key.
+
+# Items scoring below this total are listed but not detailed.
+floor = 4
+
+[sources.github]
+topics = ["claude-code", "mcp", "agent-skills"]
+per_topic = 15
+since_days = 14
+repos = ["anthropics/claude-code"]
+release_limit = 3
+
+# Queries aimed at practice rather than announcements: people describing what
+# they run, not vendors describing what they shipped.
+[sources.hacker_news]
+queries = ["claude code workflow", "agent setup", "local llm workflow"]
+limit = 15
+
+[sources.reddit]
+subreddits = ["ClaudeAI", "LocalLLaMA"]
+queries = ["workflow", "setup"]
+size = 15
+connector = "connectors/reddit-search.mjs"
+node = "node"
+
+[sources.anthropic]
+limit = 5
+
+# What the scoring call rates each item against. Edit freely: the keys become
+# the score names in the digest.
+#
+# These axes look for methods to adopt, not news to read. An announcement that
+# changes nothing about how you work should score low.
+[axes]
+workflow = "a reusable working method: a setup, a prompting pattern, a repo template, a process someone actually runs and describes"
+tooling = "agentic tooling worth adopting: subagents, skills, MCP servers, hooks, editor and CLI integrations"
+cost = "doing more with a limited budget: local models, quantisation, cheap routing, working around rate limits"
