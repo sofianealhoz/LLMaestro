@@ -9,13 +9,30 @@ from __future__ import annotations
 
 import time
 
-from ..errors import BadResponse
+from ..errors import BadResponse, ProviderError
 from ..messages import read_image
-from ..transport import post_json
+from ..transport import get, post_json
 from .base import Completion, Provider, parse_json, raise_for_status
 
 
 class OpenAICompatible(Provider):
+    def models(self, timeout: float = 10.0) -> list[str] | None:
+        try:
+            response = get(
+                f"{self.spec.base_url.rstrip('/')}/models",
+                timeout,
+                self.name,
+                {"authorization": f"Bearer {self.spec.api_key}"},
+            )
+            if not 200 <= response.status < 300:
+                return None
+            payload = response.json()
+        except (ProviderError, ValueError):
+            return None
+        entries = payload.get("data") if isinstance(payload, dict) else None
+        if not isinstance(entries, list):
+            return None
+        return sorted(str(e["id"]) for e in entries if isinstance(e, dict) and e.get("id"))
     def complete(self, messages, *, max_tokens=512, temperature=0.2, timeout=30.0) -> Completion:
         payload = {
             "model": self.spec.model,

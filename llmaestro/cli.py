@@ -66,9 +66,13 @@ def main(argv=None) -> int:
         "timeout": args.timeout,
     }
 
-    if len(prompts) == 1:
-        return _single(router, prompts[0], args, options)
-    return _batch(router, prompts, args, options)
+    try:
+        if len(prompts) == 1:
+            return _single(router, prompts[0], args, options)
+        return _batch(router, prompts, args, options)
+    finally:
+        if ledger is not None:
+            ledger.close()
 
 
 def _single(router: Router, prompt: str, args, options) -> int:
@@ -144,6 +148,7 @@ def _check(providers, skipped, ledger, args) -> int:
     print(f"catalogue: {args.config}")
     if not providers:
         print("  no usable provider")
+    usable = 0
     for provider in providers:
         spec = provider.spec
         marks = []
@@ -151,13 +156,22 @@ def _check(providers, skipped, ledger, args) -> int:
             marks.append("vision")
         if spec.tools:
             marks.append("tools")
+
         state = "ready" if provider.available() else "unreachable"
+        served = provider.models() if state == "ready" else None
+        if served is not None and spec.model not in served:
+            state = "wrong model"
+        if state == "ready":
+            usable += 1
+
         print(
             f"  {spec.name:<16} {state:<12} {spec.model:<34} "
             f"ctx {spec.context_window:<7} cost {spec.cost} "
             f"latency {spec.latency} quality {spec.quality}"
             + (f" [{', '.join(marks)}]" if marks else "")
         )
+        if state == "wrong model":
+            print(f"      not served. available: {', '.join(served) or 'none'}")
         if ledger is not None:
             for kind, values in ledger.snapshot(spec).items():
                 if values["limit"] is not None:
@@ -168,7 +182,7 @@ def _check(providers, skipped, ledger, args) -> int:
 
     if ledger is not None:
         ledger.close()
-    return 0 if providers else 1
+    return 0 if usable else 1
 
 
 def _prompts(args) -> list[str]:

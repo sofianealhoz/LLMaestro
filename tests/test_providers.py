@@ -134,6 +134,26 @@ class OpenAIShape(unittest.TestCase):
         headers = sent.call_args.args[2]
         self.assertEqual("Bearer secret", headers["authorization"])
 
+    def test_the_served_models_can_be_listed(self):
+        body = json.dumps({"data": [{"id": "zai-glm-4.7"}, {"id": "gpt-oss-120b"}]})
+
+        with mock.patch(
+            "llmaestro.providers.openai_compat.get", return_value=Response(200, body)
+        ):
+            self.assertEqual(["gpt-oss-120b", "zai-glm-4.7"], self.provider.models())
+
+    def test_listing_models_gives_up_quietly(self):
+        with mock.patch(
+            "llmaestro.providers.openai_compat.get", return_value=Response(403, "blocked")
+        ):
+            self.assertIsNone(self.provider.models())
+
+        with mock.patch(
+            "llmaestro.providers.openai_compat.get",
+            side_effect=ProviderUnavailable("groq", "offline"),
+        ):
+            self.assertIsNone(self.provider.models())
+
     def test_an_image_becomes_a_data_uri_block(self):
         wire = self.provider._wire(user("what is this", [image_file()]))
 

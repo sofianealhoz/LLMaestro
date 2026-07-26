@@ -36,6 +36,17 @@ class Ollama(Provider):
         self._probed_at = now
         return self._probe
 
+    def models(self, timeout: float = PROBE_TIMEOUT) -> list[str] | None:
+        try:
+            response = get(f"{self.spec.base_url.rstrip('/')}/api/tags", timeout, self.name)
+            payload = response.json()
+        except (ProviderError, ValueError):
+            return None
+        entries = payload.get("models") if isinstance(payload, dict) else None
+        if not isinstance(entries, list):
+            return None
+        return sorted(str(e["name"]) for e in entries if isinstance(e, dict) and e.get("name"))
+
     def complete(self, messages, *, max_tokens=512, temperature=0.2, timeout=120.0) -> Completion:
         payload = {
             "model": self.spec.model,

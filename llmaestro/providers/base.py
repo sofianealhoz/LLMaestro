@@ -64,6 +64,10 @@ class Provider:
         """Liveness probe. Cloud providers assume yes."""
         return True
 
+    def models(self, timeout: float = 10.0) -> list[str] | None:
+        """What the provider actually serves. None when it cannot be listed."""
+        return None
+
     def complete(self, messages, *, max_tokens=512, temperature=0.2, timeout=30.0) -> Completion:
         raise NotImplementedError
 

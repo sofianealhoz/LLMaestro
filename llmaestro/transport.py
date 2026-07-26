@@ -45,9 +45,16 @@ def post_json(
     return _send(request, timeout, provider)
 
 
-def get(url: str, timeout: float = 10.0, provider: str = "?") -> Response:
+def get(
+    url: str,
+    timeout: float = 10.0,
+    provider: str = "?",
+    headers: dict | None = None,
+) -> Response:
     request = urllib.request.Request(url, method="GET")
     request.add_header("user-agent", USER_AGENT)
+    for name, value in (headers or {}).items():
+        request.add_header(name, value)
     return _send(request, timeout, provider)
 
 
