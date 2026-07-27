@@ -64,7 +64,7 @@ unique, modèles locaux via Ollama. Connecteurs et serveurs MCP pour les actions
 | **Veille** | collecte dépôts, posts et versions, note chaque item via le pool, écrit un digest classé | fait, voir [`docs/WATCH.md`](docs/WATCH.md) |
 | **Connecteurs** | outils autonomes appelables, recherche Reddit sans clé | fait, voir [`connectors/`](connectors/) |
 | **Intégrations MCP** | serveurs Model Context Protocol | documenté, voir [`docs/MCP-INTEGRATIONS.md`](docs/MCP-INTEGRATIONS.md) |
-| **Agents confinés** | boucle bornée sur un worktree jetable, sans verbe destructeur | prévu |
+| **Agents confinés** | boucle bornée dans un worktree jetable, outils sans verbe destructeur, promotion sur ordre | fait, voir [`docs/AGENTS.md`](docs/AGENTS.md) |
 | **Évaluation des sorties** | passe de notation et de contrôle | prévu |
 
 ---
@@ -75,12 +75,14 @@ unique, modèles locaux via Ollama. Connecteurs et serveurs MCP pour les actions
 llmaestro/       le paquet : routeur, registre de quotas, pool, clients providers
   providers/     un client par protocole, compatible OpenAI et Ollama
   watch/         la veille : collecteurs, dédoublonnage, notation, digest
+  agent/         les agents confinés : bac à sable, outils, boucle, journal
 tests/           suite hors ligne, ni clé ni réseau
 connectors/      connecteurs autonomes appelables par l'orchestrateur
 docs/            notes d'architecture et d'intégration
 providers.toml   catalogue : modèles, capacités, rangs, quotas connus
 .env.example     les clés à remplir, à copier en .env
 watch.example.toml  sources et axes de notation, à copier en watch.toml
+agent.example.toml  commandes autorisées et budgets, à copier en agent.toml
 pyproject.toml   empaquetage, aucune dépendance
 ```
 
@@ -154,6 +156,17 @@ python3 -m llmaestro --dry-run "bonjour"
 python3 -m llmaestro watch --limit 40
 ```
 
+Confier une tâche à un agent, qui travaille dans une copie jetable du dépôt :
+
+```bash
+python3 -m llmaestro run --repo ~/projets/mon-depot "écris les tests unitaires de panier.py"
+python3 -m llmaestro runs              # les runs et leur état
+python3 -m llmaestro inspect <run-id>  # le diff, ou --journal pour les étapes
+python3 -m llmaestro promote <run-id>  # applique sur le vrai dépôt, sur ordre
+```
+
+Tant que `promote` n'est pas lancé, le dépôt cible n'a pas bougé d'un octet.
+
 Depuis Python :
 
 ```python
@@ -190,10 +203,16 @@ Ni clé ni réseau : providers scriptés, horloge injectée, registre en mémoir
 
 | Fournisseur | Type | Rôle dans la chaîne |
 |---|---|---|
-| Cerebras | cloud, gratuit | tâches feuilles, très rapide, contexte plafonné |
-| Groq | cloud, gratuit | volume, petits modèles très rapides |
+| Cerebras | cloud, gratuit | tâches feuilles, très rapide, contexte plafonné à 8K |
+| Groq | cloud, gratuit | volume, petits modèles très rapides, plus un 70B pour la qualité |
+| Gemini | cloud, gratuit | 1 million de contexte et vision, le seul à encaisser un gros fichier |
+| Mistral | cloud, gratuit | Codestral, spécialisé code, 256K de contexte |
+| GitHub Models | cloud, gratuit | 45 modèles sur un compte GitHub, quotas serrés |
 | OpenRouter | cloud, gratuit | second recours, multi-modèles, une seule clé |
 | Ollama | local | souverain, hors ligne, vision |
+
+Tous parlent le format OpenAI, donc ajouter un fournisseur ne demande aucun code, seulement
+une entrée dans `providers.toml`.
 
 Les identifiants sont lus dans l'environnement, jamais commités.
 
@@ -207,7 +226,7 @@ Les identifiants sont lus dans l'environnement, jamais commités.
 - [x] Inférence locale, Ollama
 - [x] Appels d'outils
 - [x] Veille technique
-- [ ] Agents confinés dans un worktree jetable
+- [x] Agents confinés dans un worktree jetable
 - [ ] Point d'entrée compatible OpenAI, pour brancher n'importe quel client existant
 - [ ] Évaluation des sorties
 - [ ] Vision et pilotage d'écran
