@@ -81,6 +81,50 @@ quality = 2
 rpm = 20
 rpd = 50
 
+# Free tiers with no credit card. All speak the OpenAI shape, so they need no
+# client of their own. Without its key an entry is skipped, and `--check` names
+# the models a provider actually serves when the one below is wrong.
+
+[[provider]]
+name = "mistral"
+kind = "openai_compat"
+base_url = "https://api.mistral.ai/v1"
+model = "codestral-latest"
+env_key = "MISTRAL_API_KEY"
+context_window = 256000
+vision = false
+tools = true
+cost = 3
+latency = 2
+quality = 2
+
+[[provider]]
+name = "gemini"
+kind = "openai_compat"
+base_url = "https://generativelanguage.googleapis.com/v1beta/openai"
+model = "gemini-2.5-flash"
+env_key = "GEMINI_API_KEY"
+context_window = 1000000
+vision = true
+tools = true
+cost = 3
+latency = 2
+quality = 2
+rpd = 1500
+
+[[provider]]
+name = "github-models"
+kind = "openai_compat"
+base_url = "https://models.github.ai/inference"
+model = "openai/gpt-4.1-mini"
+env_key = "GITHUB_MODELS_TOKEN"
+context_window = 128000
+vision = true
+tools = true
+cost = 4
+latency = 3
+quality = 2
+
 # Local inference. No key: availability is probed at runtime, and the provider
 # is simply skipped when the daemon is not listening.
 [[provider]]
