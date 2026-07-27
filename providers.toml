@@ -98,18 +98,34 @@ cost = 3
 latency = 2
 quality = 2
 
+# Deux clés Google, donc deux projets et deux quotas. Les modèles 2.x ne sont
+# plus servis aux projets créés récemment: viser la génération 3.
 [[provider]]
 name = "gemini"
 kind = "openai_compat"
 base_url = "https://generativelanguage.googleapis.com/v1beta/openai"
-model = "gemini-2.5-flash"
-env_key = "GEMINI_API_KEY"
+model = "gemini-3.6-flash"
+env_key = "GEMINI_API_KEY_2"
 context_window = 1000000
 vision = true
 tools = true
 cost = 3
 latency = 2
 quality = 2
+rpd = 1500
+
+[[provider]]
+name = "gemini-lite"
+kind = "openai_compat"
+base_url = "https://generativelanguage.googleapis.com/v1beta/openai"
+model = "gemini-3.1-flash-lite"
+env_key = "GEMINI_API_KEY"
+context_window = 1000000
+vision = true
+tools = true
+cost = 3
+latency = 3
+quality = 3
 rpd = 1500
 
 [[provider]]

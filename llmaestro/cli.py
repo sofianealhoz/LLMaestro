@@ -310,7 +310,7 @@ def _check(providers, skipped, ledger, args) -> int:
 
         state = "ready" if provider.available() else "unreachable"
         served = provider.models() if state == "ready" else None
-        if served is not None and spec.model not in served:
+        if served is not None and not _is_served(spec.model, served):
             state = "wrong model"
         if state == "ready":
             usable += 1
@@ -334,6 +334,11 @@ def _check(providers, skipped, ledger, args) -> int:
     if ledger is not None:
         ledger.close()
     return 0 if usable else 1
+
+
+def _is_served(model: str, served: list) -> bool:
+    """Google liste 'models/x' mais accepte 'x'. Ailleurs le prefixe compte."""
+    return model in served or f"models/{model}" in served
 
 
 def _prompts(args) -> list[str]:

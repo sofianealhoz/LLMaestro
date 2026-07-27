@@ -111,5 +111,21 @@ class Env(unittest.TestCase):
         self.assertEqual({}, load_env("does-not-exist.env", environ={}))
 
 
+class ModelServed(unittest.TestCase):
+    def test_a_namespaced_listing_still_matches(self):
+        from llmaestro.cli import _is_served
+
+        google = ["models/gemini-3.6-flash", "models/gemini-2.0-flash"]
+        self.assertTrue(_is_served("gemini-3.6-flash", google))
+        self.assertFalse(_is_served("gemini-9-flash", google))
+
+    def test_a_meaningful_prefix_is_not_ignored(self):
+        from llmaestro.cli import _is_served
+
+        github = ["openai/gpt-4.1-mini", "meta/llama-4"]
+        self.assertTrue(_is_served("openai/gpt-4.1-mini", github))
+        self.assertFalse(_is_served("gpt-4.1-mini", github), "le prefixe fait partie du nom")
+
+
 if __name__ == "__main__":
     unittest.main()
