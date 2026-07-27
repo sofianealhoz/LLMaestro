@@ -124,6 +124,9 @@ tools = true
 cost = 4
 latency = 3
 quality = 2
+# Serré, et dépendant du niveau d'abonnement Copilot.
+rpm = 10
+rpd = 50
 
 # Local inference. No key: availability is probed at runtime, and the provider
 # is simply skipped when the daemon is not listening.
