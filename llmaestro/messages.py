@@ -17,6 +17,9 @@ class ToolCall:
     id: str
     name: str
     arguments: dict = field(default_factory=dict)
+    # Charge opaque du fournisseur, a renvoyer telle quelle au tour suivant.
+    # Gemini 3 y met une thought_signature et refuse la suite sans elle.
+    extra: dict = field(default_factory=dict)
 
 
 @dataclass(frozen=True)

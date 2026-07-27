@@ -17,6 +17,12 @@ BRANCH_PREFIX = "llmaestro"
 SECRET_MARKERS = ("API_KEY", "TOKEN", "SECRET", "PASSWORD")
 COMMAND_TIMEOUT = 120.0
 OUTPUT_LIMIT = 4000
+NOISE = (
+    ":(exclude)**/__pycache__/**",
+    ":(exclude)**/*.pyc",
+    ":(exclude)**/.pytest_cache/**",
+    ":(exclude)**/node_modules/**",
+)
 
 
 class Refused(LLMaestroError):
@@ -165,7 +171,9 @@ class Workspace:
         """Commit tout ce qui traîne. Rend chaque étape annulable."""
         if not _git(self.root, "status", "--porcelain").strip():
             return None
-        _git(self.root, "add", "-A")
+        # Sans exclusion, lancer les tests fait commiter les __pycache__ et
+        # pollue le diff que Sofiane relit avant de promouvoir.
+        _git(self.root, "add", "-A", "--", ".", *NOISE)
         _git(self.root, "commit", "-m", message, "--no-verify")
         return _git(self.root, "rev-parse", "HEAD").strip()
 

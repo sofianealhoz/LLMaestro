@@ -166,6 +166,43 @@ class OpenAIShape(unittest.TestCase):
         self.assertEqual("", completion.text)
         self.assertEqual("tool_calls", completion.finish_reason)
 
+    def test_provider_payload_on_a_tool_call_makes_the_round_trip(self):
+        # Gemini 3 joint une thought_signature et refuse le tour suivant sans elle.
+        signature = {"google": {"thought_signature": "abc123"}}
+        body = json.dumps(
+            {
+                "choices": [
+                    {
+                        "message": {
+                            "content": None,
+                            "tool_calls": [
+                                {
+                                    "id": "call_1",
+                                    "extra_content": signature,
+                                    "function": {"name": "lister", "arguments": "{}"},
+                                }
+                            ],
+                        }
+                    }
+                ]
+            }
+        )
+
+        completion, _ = self.call(Response(200, body))
+        self.assertEqual(signature, completion.tool_calls[0].extra)
+
+        from llmaestro.messages import assistant
+
+        renvoye = self.provider._wire(assistant("", completion.tool_calls))
+        self.assertEqual(signature, renvoye["tool_calls"][0]["extra_content"])
+
+    def test_a_call_without_provider_payload_stays_clean(self):
+        from llmaestro.messages import ToolCall, assistant
+
+        wire = self.provider._wire(assistant("", [ToolCall("1", "lister", {})]))
+
+        self.assertNotIn("extra_content", wire["tool_calls"][0])
+
     def test_broken_tool_arguments_do_not_crash_the_run(self):
         body = json.dumps(
             {

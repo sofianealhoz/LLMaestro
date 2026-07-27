@@ -98,15 +98,7 @@ class OpenAICompatible(Provider):
                 "role": message.role,
                 "content": message.text or None,
                 "tool_calls": [
-                    {
-                        "id": call.id,
-                        "type": "function",
-                        "function": {
-                            "name": call.name,
-                            "arguments": json.dumps(call.arguments),
-                        },
-                    }
-                    for call in message.tool_calls
+                    _call_wire(call) for call in message.tool_calls
                 ],
             }
         if not message.images:
@@ -118,6 +110,17 @@ class OpenAICompatible(Provider):
                 {"type": "image_url", "image_url": {"url": f"data:{mime};base64,{data}"}}
             )
         return {"role": message.role, "content": blocks}
+
+
+def _call_wire(call) -> dict:
+    wire = {
+        "id": call.id,
+        "type": "function",
+        "function": {"name": call.name, "arguments": json.dumps(call.arguments)},
+    }
+    if call.extra:
+        wire["extra_content"] = call.extra
+    return wire
 
 
 def _tool_calls(raw) -> tuple:
@@ -136,11 +139,13 @@ def _tool_calls(raw) -> tuple:
                 arguments = json.loads(arguments or "{}")
             except ValueError:
                 arguments = {}
+        extra = entry.get("extra_content")
         calls.append(
             ToolCall(
                 id=str(entry.get("id") or f"call_{len(calls)}"),
                 name=str(name),
                 arguments=arguments if isinstance(arguments, dict) else {},
+                extra=extra if isinstance(extra, dict) else {},
             )
         )
     return tuple(calls)

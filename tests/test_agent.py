@@ -181,6 +181,23 @@ class Loop(SandboxCase):
         )
         self.assertEqual("", status.stdout.strip())
 
+    def test_build_noise_stays_out_of_the_commits(self):
+        cache = Path(self.workspace.root) / "__pycache__"
+        cache.mkdir()
+        (cache / "panier.cpython-314.pyc").write_bytes(b"\x00")
+        self.workspace.write("vrai.py", "x = 1\n")
+
+        self.workspace.snapshot("apres ecriture")
+
+        suivis = subprocess.run(
+            ["git", "ls-tree", "-r", "HEAD", "--name-only"],
+            cwd=self.workspace.root,
+            capture_output=True,
+            text=True,
+        ).stdout
+        self.assertIn("vrai.py", suivis)
+        self.assertNotIn("__pycache__", suivis)
+
     def test_each_write_is_committed_so_it_can_be_undone(self):
         script = [
             call(calls=[ToolCall("1", "write_file", {"path": "a.py", "content": "a\n"})]),
